@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
-	"io/ioutil"
 	"time"
 )
 
@@ -12,19 +11,6 @@ func main() {
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
-}
-
-func PublicKeyFile() (ssh.AuthMethod, error) {
-	buffer, err := ioutil.ReadFile("./out")
-	if err != nil {
-		return nil, err
-	}
-
-	key, err := ssh.ParsePrivateKey(buffer)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.PublicKeys(key), nil
 }
 
 func connectToHost(user, host string) error {

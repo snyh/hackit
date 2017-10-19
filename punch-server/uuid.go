@@ -5,6 +5,7 @@ import (
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
+	"time"
 )
 
 type Manager struct {
@@ -58,14 +59,10 @@ func (m *Manager) Hacking(newChannel ssh.NewChannel, uuid string) {
 
 func forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
 	go func() {
-		for {
-			io.Copy(c1, c2)
-		}
+		io.Copy(c1, c2)
 	}()
 	go func() {
-		for {
-			io.Copy(c2, c1)
-		}
+		io.Copy(c2, c1)
 	}()
 }
 
@@ -77,6 +74,7 @@ func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ssh.Channel, sR 
 			}
 			//			fmt.Println("F　cR ---> sC", string(req.Payload))
 			sC.SendRequest(req.Type, req.WantReply, req.Payload)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}()
 
@@ -87,6 +85,7 @@ func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ssh.Channel, sR 
 			}
 			//			fmt.Println("F sR ---> cC", string(req.Payload))
 			cC.SendRequest(req.Type, req.WantReply, req.Payload)
+			time.Sleep(time.Millisecond * 10)
 		}
 	}()
 }
