@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 )
@@ -20,19 +19,6 @@ func main() {
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
-}
-
-func PublicKeyFile() (ssh.AuthMethod, error) {
-	buffer, err := ioutil.ReadFile("./out")
-	if err != nil {
-		return nil, err
-	}
-
-	key, err := ssh.ParsePrivateKey(buffer)
-	if err != nil {
-		return nil, err
-	}
-	return ssh.PublicKeys(key), nil
 }
 
 func connectToHost(uuid, host string) error {
@@ -78,11 +64,8 @@ func handleRequest(reqs <-chan *ssh.Request) {
 
 func login(conn ssh.Channel) error {
 	go func() {
-		for {
-			io.Copy(conn, os.Stdin)
-		}
+		io.Copy(conn, os.Stdin)
 	}()
-	for {
-		io.Copy(os.Stdout, conn)
-	}
+	io.Copy(os.Stdout, conn)
+	return nil
 }
