@@ -18,7 +18,7 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 	for req := range reqs {
 		switch req.Type {
 		case "chat":
-			fmt.Printf("\033[31m %s \033[0m\n", req.Payload)
+			//			fmt.Printf("\033[31m %s \033[0m\n", req.Payload)
 			req.Reply(true, nil)
 		case "shell":
 			// We only accept the default shell
@@ -45,7 +45,7 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 	fmt.Println("EndOfRequest...")
 }
 
-func makeBashServer(connection ssh.Channel, reqs <-chan *ssh.Request) error {
+func makeBashServer(connection ssh.Channel, reqs <-chan *ssh.Request, printer io.Writer) error {
 	// Fire up bash for this session
 	bash := exec.Command("bash")
 
@@ -70,7 +70,7 @@ func makeBashServer(connection ssh.Channel, reqs <-chan *ssh.Request) error {
 	//pipe session to bash and visa-versa
 	var once sync.Once
 	go func() {
-		io.Copy(connection, bashf)
+		io.Copy(connection, io.TeeReader(bashf, printer))
 		once.Do(close)
 	}()
 	go func() {

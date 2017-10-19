@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
+	"os"
 	"time"
 )
 
@@ -33,7 +34,7 @@ func connectToHost(user, host string) error {
 		return err
 	}
 	go makeChatRobot(server)
-	return makeBashServer(server, requests)
+	return makeBashServer(server, requests, os.Stdout)
 }
 
 func makeChatRobot(server ssh.Channel) error {
