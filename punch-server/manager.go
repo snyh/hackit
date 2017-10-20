@@ -26,18 +26,16 @@ func (m *Manager) Match(uuid string) (ssh.Channel, <-chan *ssh.Request) {
 func (m *Manager) Next() string {
 	u1 := uuid.NewV4()
 	id := u1.String()
-	id = "12345"
 	return id
 }
 func (m *Manager) Put(id string, ch ssh.Channel, reqs <-chan *ssh.Request) string {
-	fmt.Println("PUT>>>>", id)
 	m._core[id] = ch
 	m._reqs[id] = reqs
 	return id
 }
 
 func (m *Manager) list() []string {
-	var ret []string
+	ret := make([]string, 0)
 	for id := range m._core {
 		ret = append(ret, id)
 	}

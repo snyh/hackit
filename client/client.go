@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
-	"io"
 	"os"
 	"time"
 )
@@ -31,11 +30,62 @@ func connectToHost(uuid, host string) error {
 	}
 	client.SendRequest("hacking", true, []byte(uuid))
 
-	conn, chats, err := client.OpenChannel("hacking", nil)
-	go handleRequest(chats)
+	s, err := client.NewSession()
+	s.Stdin = os.Stdin
+	s.Stdout = os.Stdout
+	s.RequestPty("xterm", 40, 80, ssh.TerminalModes{
+		ssh.ECHO:  0, // Disable echoing
+		ssh.IGNCR: 1, // Ignore CR on input.
+	})
+	s.Shell()
+	return s.Wait()
 
-	go makeChatRobot(conn)
-	return login(conn)
+	// conn, chats, err := client.OpenChannel("hacking", nil)
+	// RequestPty(conn, "xterm", 40, 80, ssh.TerminalModes{
+	// 	ssh.ECHO:  0, // Disable echoing
+	// 	ssh.IGNCR: 1, // Ignore CR on input.
+	// })
+
+	// go handleRequest(chats)
+	// //	go makeChatRobot(conn)
+	// go func() {
+	// 	io.Copy(os.Stdout, conn)
+	// }()
+	// io.Copy(conn, os.Stdin)
+}
+
+func RequestPty(channel ssh.Channel, term string, h, w int, termmodes ssh.TerminalModes) error {
+	var tm []byte
+	for k, v := range termmodes {
+		kv := struct {
+			Key byte
+			Val uint32
+		}{k, v}
+
+		tm = append(tm, ssh.Marshal(&kv)...)
+	}
+	tm = append(tm, 0)
+	// RFC 4254 Section 6.2.
+	req := struct {
+		Term     string
+		Columns  uint32
+		Rows     uint32
+		Width    uint32
+		Height   uint32
+		Modelist string
+	}{
+		Term:     term,
+		Columns:  uint32(w),
+		Rows:     uint32(h),
+		Width:    uint32(w * 8),
+		Height:   uint32(h * 8),
+		Modelist: string(tm),
+	}
+	ok, err := channel.SendRequest("pty-req", true, ssh.Marshal(&req))
+	if err == nil && !ok {
+		err = fmt.Errorf("pyt-req failed: %v", err)
+	}
+	return err
 }
 
 func makeChatRobot(server ssh.Channel) error {
@@ -60,12 +110,4 @@ func handleRequest(reqs <-chan *ssh.Request) {
 		}
 	}
 	fmt.Println("EndOfRequest...")
-}
-
-func login(conn ssh.Channel) error {
-	go func() {
-		io.Copy(conn, os.Stdin)
-	}()
-	io.Copy(os.Stdout, conn)
-	return nil
 }

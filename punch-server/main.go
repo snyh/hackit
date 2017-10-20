@@ -33,6 +33,8 @@ func main() {
 
 	m := NewManager()
 
+	go UIServer(":2207", m)
+
 	// Accept all connections
 	log.Print("Listening on 2200...")
 	for {
