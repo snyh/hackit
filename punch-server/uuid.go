@@ -5,6 +5,7 @@ import (
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
+	"sync"
 	"time"
 )
 
@@ -58,11 +59,18 @@ func (m *Manager) Hacking(newChannel ssh.NewChannel, uuid string) {
 }
 
 func forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
+	close := func() {
+		c1.Close()
+		c2.Close()
+	}
+	one := sync.Once{}
 	go func() {
 		io.Copy(c1, c2)
+		one.Do(close)
 	}()
 	go func() {
 		io.Copy(c2, c1)
+		one.Do(close)
 	}()
 }
 
