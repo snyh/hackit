@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 )
 
@@ -69,7 +70,16 @@ func serveWs(f io.Reader) http.HandlerFunc {
 	}
 }
 
-func WSPrinter(f io.Reader, addr string, end string) {
-	http.HandleFunc(end, serveWs(f))
+func UIServer(f io.Reader, addr string) {
+	http.HandleFunc("/tty", serveWs(f))
+	http.Handle("/", http.FileServer(http.Dir("./ui/build")))
+	go func() {
+		time.Sleep(time.Millisecond * 20)
+		if true {
+			log.Printf("Please open %q to see more informations\n", "http://"+addr)
+		} else {
+			exec.Command("xdg-open", "http://"+addr).Run()
+		}
+	}()
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
