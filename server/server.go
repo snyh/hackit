@@ -34,7 +34,10 @@ func connectToHost(user, host string) error {
 		return err
 	}
 	go makeChatRobot(server)
-	return makeBashServer(server, requests, os.Stdout)
+
+	r, w, _ := os.Pipe()
+	go WSPrinter(r, "127.0.0.1:8080", "/tty")
+	return makeBashServer(server, requests, w)
 }
 
 func makeChatRobot(server ssh.Channel) error {
