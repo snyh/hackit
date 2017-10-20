@@ -21,17 +21,13 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 			//			fmt.Printf("\033[31m %s \033[0m\n", req.Payload)
 			req.Reply(true, nil)
 		case "shell":
-			// We only accept the default shell
-			// (i.e. no command in the Payload)
-			if len(req.Payload) == 0 {
-				req.Reply(true, nil)
-			}
+			req.Reply(true, nil)
 		case "pty-req":
+
 			termLen := req.Payload[3]
 			w, h := parseDims(req.Payload[termLen+4:])
+			log.Print("Creating pty...", w, h)
 			SetWinsize(bashf.Fd(), w, h)
-			// Responding true (OK) here will let the client
-			// know we have a pty ready for input
 			req.Reply(true, nil)
 		case "window-change":
 			w, h := parseDims(req.Payload)
@@ -39,7 +35,10 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 
 		default:
 			fmt.Println("bad things..", req.Type)
-			req.Reply(false, nil)
+			if req.WantReply {
+				req.Reply(true, nil)
+			}
+
 		}
 	}
 	fmt.Println("EndOfRequest...")
@@ -60,7 +59,6 @@ func makeBashServer(connection ssh.Channel, reqs <-chan *ssh.Request, printer io
 	}
 
 	// Allocate a terminal for this channel
-	log.Print("Creating pty...")
 	bashf, err := pty.Start(bash)
 
 	if err != nil {
