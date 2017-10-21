@@ -42,22 +42,6 @@ func NewWebSocketClientChannel(uuid string, ws *websocket.Conn) (ClientChannel, 
 	return c, nil
 }
 
-type wsWrap struct {
-	core *websocket.Conn
-}
-
-func (w wsWrap) Close() error {
-	return w.core.Close()
-}
-func (w wsWrap) Write(p []byte) (int, error) {
-	return len(p), w.core.WriteMessage(websocket.TextMessage, p)
-}
-func (w wsWrap) Read(p []byte) (int, error) {
-	_, bs, err := w.core.ReadMessage()
-	copy(p, bs)
-	return len(bs), err
-}
-
 func (WebSocketClientChannel) SendRequest(string, bool, []byte) (bool, error) { // TODO:Remove
 	return false, fmt.Errorf("websocket client hasn't implement SendRequest")
 }

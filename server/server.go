@@ -52,7 +52,7 @@ func (m *Manager) Run() error {
 	if p := os.Getenv("PORT"); p != "" {
 		addr = ":" + p
 	}
-	go m.UIServer(r, addr)
+	go m.HTTPServer(r, addr)
 	return makeBashServer(m.channel, m.reqs, w)
 }
 

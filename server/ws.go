@@ -13,19 +13,6 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-type wsWrap struct {
-	core *websocket.Conn
-}
-
-func (w wsWrap) Write(p []byte) (int, error) {
-	return len(p), w.core.WriteMessage(websocket.TextMessage, p)
-}
-func (w wsWrap) Read(p []byte) (int, error) {
-	_, bs, err := w.core.ReadMessage()
-	copy(p, bs)
-	return len(bs), err
-}
-
 func serveWs(f io.Reader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ws, err := upgrader.Upgrade(w, r, nil)
@@ -51,10 +38,9 @@ func serveStatus(m *Manager) http.HandlerFunc {
 	}
 }
 
-func (m *Manager) UIServer(f io.Reader, addr string) {
+func (m *Manager) HTTPServer(f io.Reader, addr string) {
 	http.HandleFunc("/tty/status", serveStatus(m))
 	http.HandleFunc("/tty", serveWs(f))
-	http.Handle("/", http.FileServer(http.Dir("./ui/build")))
 	go func() {
 		time.Sleep(time.Millisecond * 20)
 		if true {

@@ -34,6 +34,22 @@ func wsPing(ws *websocket.Conn, done <-chan struct{}) {
 	}
 }
 
+type wsWrap struct {
+	core *websocket.Conn
+}
+
+func (w wsWrap) Write(p []byte) (int, error) {
+	return len(p), w.core.WriteMessage(websocket.TextMessage, p)
+}
+func (w wsWrap) Read(p []byte) (int, error) {
+	_, bs, err := w.core.ReadMessage()
+	copy(p, bs)
+	return len(bs), err
+}
+func (w wsWrap) Close() error {
+	return w.core.Close()
+}
+
 func fixCSR(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 }

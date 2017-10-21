@@ -1,9 +1,5 @@
 import React, { Component } from 'react';
-import './App.css';
-
 import XTerm from "./react-xterm.js";
-
-import 'semantic-ui-css/semantic.min.css';
 
 import { Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
 
@@ -60,12 +56,12 @@ class Status extends Component {
     }
 }
 
-class App extends Component {
+class UserView extends Component {
     render() {
         const backend = new WebSocket(`ws://${TTY_SERVER}/tty`)
         return (
             <Container>
-                <Header>The terminal is operated by the hacker</Header>
+                <Header>The terminal is operated by the hacker !</Header>
                 <Status/>
                 <Divider/>
                 <Grid divided>
@@ -88,4 +84,4 @@ class App extends Component {
     }
 }
 
-export default App;
+export default UserView;

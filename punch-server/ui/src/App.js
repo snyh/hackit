@@ -7,6 +7,8 @@ import { Redirect, Route, Link, Switch } from 'react-router-dom';
 
 import XTerm from './react-xterm.js';
 
+import UserView from './UserView.js';
+
 
 const API_SERVER = "localhost:2207"
 
@@ -134,6 +136,7 @@ class ListMagicLink extends Component {
                 <Divider/>
                 <Header> 当前有 {ids.length} 个连接 </Header>
                 <ul>{ids}</ul>
+                <Link to="/create"> 创建 </Link>
             </div>
         );
     }
@@ -146,6 +149,7 @@ class App extends Component {
                 <Switch>
                     <Route exact path="/" component={ListMagicLink}/>
                     <Route path="/connect/:id" component={MagicLinkWithEnsure}/>
+                    <Route path="/create" component={UserView} />
                 </Switch>
             </Container>
         );
