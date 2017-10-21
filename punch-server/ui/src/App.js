@@ -3,6 +3,15 @@ import './App.css';
 
 import { Container, Header, Divider } from 'semantic-ui-react';
 
+import { Route, Link, Switch } from 'react-router-dom';
+
+class MagicLink extends Component {
+    render() {
+        const id = this.props.match.params.id
+        return <div>Hello... try connecting to {id}</div>
+    }
+}
+
 class ListMagicLink extends Component {
     constructor(props) {
         super(props)
@@ -18,7 +27,7 @@ class ListMagicLink extends Component {
                     this.setState({values: data});
                     this.timer = setTimeout(tick, 3000);
                 })
-            })
+           })
         };
         tick();
     }
@@ -29,7 +38,7 @@ class ListMagicLink extends Component {
 
     render() {
         const ids = this.state.values.map( id => {
-            return <li key={id}><a target="_blank" href={`/connect/${id}`}>{id}</a></li>
+            return <li key={id}><Link to={`/connect/${id}`}>{id}</Link></li>
         })
         return (
             <div>
@@ -44,9 +53,12 @@ class App extends Component {
     render() {
         return (
             <Container>
-                <Header> HackIt 管理后台 </Header>
+                <Header> HackIt 管理后台 <Link to="/">Home</Link> </Header>
                 <Divider/>
-                <ListMagicLink values={["12345", "54321"]} />
+                <Switch>
+                    <Route exact path="/" component={ListMagicLink}/>
+                    <Route path="/connect/:id" component={MagicLink}/>
+                </Switch>
             </Container>
         );
     }
