@@ -41,7 +41,7 @@ func main() {
 	go UIServer(UIAddr, m)
 
 	// Accept all connections
-	log.Print("Listening on 2200...")
+	log.Printf("Listening on %s\n", SSHAddr)
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
@@ -77,10 +77,14 @@ func dispatch(m *Manager, tcpConn net.Conn, config *ssh.ServerConfig) error {
 		case "hacking":
 			log.Printf("New SSH connection \033[31mHacking\033[0m %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
 			req.Reply(true, nil)
+			uuid := string(req.Payload)
 
 			// We only support one channel per ssh connection.
-			go m.Hacking(<-channels, string(req.Payload))
-			log.Println("ENDDDDDDDDDDHACKING>>>")
+			c, err := NewSSHClientChannel(<-channels)
+			if err != nil {
+				return err
+			}
+			go m.Hacking(c, uuid)
 		default:
 			return tcpConn.Close()
 		}

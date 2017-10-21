@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -33,6 +32,11 @@ func (m *Manager) Next() string {
 	return id
 }
 
+func (m *Manager) Has(uuid string) bool {
+	m.RLock()
+	defer m.RUnlock()
+	return m._core[uuid] != nil && m._reqs[uuid] != nil
+}
 func (m *Manager) Get(uuid string) (ssh.Channel, <-chan *ssh.Request) {
 	m.RLock()
 	defer m.RUnlock()
@@ -82,26 +86,20 @@ func (m *Manager) list() []string {
 	return ret
 }
 
-func (m *Manager) Hacking(newChannel ssh.NewChannel, uuid string) {
-	cChannel, cReqs, err := newChannel.Accept()
-	if err != nil {
-		fmt.Printf("Could not accept channel (%s)", err)
-		return
-	}
-
+func (m *Manager) Hacking(channel ClientChannel, uuid string) {
 	rChannel, rReqs := m.Get(uuid)
 	if rChannel == nil || rReqs == nil {
-		cChannel.Write([]byte("Invalid Magic key\n"))
-		cChannel.Close()
+		channel.Write([]byte("Invalid Magic key\n"))
+		channel.Close()
 		return
 	}
 
-	forwardRequests(rChannel, rReqs, cChannel, cReqs)
+	forwardRequests(rChannel, rReqs, channel, channel.RequestChan())
 
-	m.forwardChannel(rChannel, cChannel)
+	m.forwardChannel(rChannel, channel)
 }
 
-func (m *Manager) forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
+func (m *Manager) forwardChannel(c1 ssh.Channel, c2 ClientChannel) {
 	close := func() {
 		c1.Close()
 		c2.Close()
@@ -111,19 +109,18 @@ func (m *Manager) forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
 		io.Copy(c1, c2)
 		one.Do(close)
 	}()
-	go func() {
-		io.Copy(c2, c1)
-		one.Do(close)
-	}()
+
+	io.Copy(c2, c1)
+	one.Do(close)
 }
 
-func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ssh.Channel, sR <-chan *ssh.Request) {
+func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ClientChannel, sR <-chan *ssh.Request) {
 	go func() {
 		for req := range cR {
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-			//			fmt.Println("F　cR ---> sC", string(req.Payload))
+			//			log.Println("F　cR ---> sC", string(req.Payload))
 			sC.SendRequest(req.Type, req.WantReply, req.Payload)
 		}
 	}()
@@ -133,7 +130,7 @@ func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ssh.Channel, sR 
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-			//			fmt.Println("F sR ---> cC", string(req.Payload))
+			//			log.Println("F sR ---> cC", string(req.Payload))
 			cC.SendRequest(req.Type, req.WantReply, req.Payload)
 		}
 	}()

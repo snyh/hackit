@@ -16,6 +16,7 @@ func main() {
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
+	fmt.Println("Exit successfully")
 }
 
 type Manager struct {

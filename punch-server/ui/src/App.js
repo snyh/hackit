@@ -5,10 +5,21 @@ import { Container, Header, Divider } from 'semantic-ui-react';
 
 import { Route, Link, Switch } from 'react-router-dom';
 
+import XTerm from './react-xterm.js';
+
+
+const API_SERVER = "localhost:2207"
+
 class MagicLink extends Component {
     render() {
         const id = this.props.match.params.id
-        return <div>Hello... try connecting to {id}</div>
+        const backend = `ws://${API_SERVER}/connect?uuid=${id}`
+        return (
+            <div>
+                Hello... try connecting to {id}
+                <XTerm backend={backend}></XTerm>
+            </div>
+        )
     }
 }
 
@@ -22,7 +33,7 @@ class ListMagicLink extends Component {
 
     componentDidMount() {
         const tick = () => {
-            fetch("http://localhost:2207/list").then( (resp) => {
+            fetch(`http://${API_SERVER}/list`).then( (resp) => {
                 resp.json().then( data => {
                     this.setState({values: data});
                     this.timer = setTimeout(tick, 3000);
