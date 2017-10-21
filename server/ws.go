@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"github.com/gorilla/websocket"
 	"io"
 	"log"
@@ -70,7 +71,27 @@ func serveWs(f io.Reader) http.HandlerFunc {
 	}
 }
 
-func UIServer(f io.Reader, addr string) {
+func fixCSR(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+}
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	bs, err := json.Marshal(v)
+	if err != nil {
+		w.WriteHeader(501)
+		return
+	}
+	w.Write(bs)
+}
+
+func serveStatus(m *Manager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fixCSR(w)
+		writeJSON(w, m.uuid)
+	}
+}
+
+func (m *Manager) UIServer(f io.Reader, addr string) {
+	http.HandleFunc("/tty/status", serveStatus(m))
 	http.HandleFunc("/tty", serveWs(f))
 	http.Handle("/", http.FileServer(http.Dir("./ui/build")))
 	go func() {

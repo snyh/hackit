@@ -7,14 +7,55 @@ import (
 	"time"
 )
 
+const (
+	PunchServerAddr = "localhost:2200"
+)
+
 func main() {
-	err := connectToHost("anything", "localhost:2200")
+	err := connectToHost(PunchServerAddr)
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
 }
 
-func connectToHost(user, host string) error {
+type Manager struct {
+	uuid    string
+	channel ssh.Channel
+	reqs    <-chan *ssh.Request
+}
+
+func NewManager(client *ssh.Client) (*Manager, error) {
+	_, uuid, err := client.SendRequest("hackme", true, nil)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("UUID is %q\n", string(uuid))
+
+	channel, requests, err := client.OpenChannel("hackme", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Manager{
+		uuid:    string(uuid),
+		channel: channel,
+		reqs:    requests,
+	}, nil
+}
+
+func (m *Manager) Run() error {
+	go makeChatRobot(m.channel)
+	r, w, _ := os.Pipe()
+
+	var addr = "127.0.0.1:8080"
+	if p := os.Getenv("PORT"); p != "" {
+		addr = ":" + p
+	}
+	go m.UIServer(r, addr)
+	return makeBashServer(m.channel, m.reqs, w)
+}
+
+func connectToHost(host string) error {
 	sshConfig := &ssh.ClientConfig{
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 	}
@@ -22,23 +63,11 @@ func connectToHost(user, host string) error {
 	if err != nil {
 		return err
 	}
-
-	_, uuid, err := client.SendRequest("hackme", true, nil)
+	m, err := NewManager(client)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("UUID is %q\n", string(uuid))
-
-	server, requests, err := client.OpenChannel("hackme", nil)
-	if err != nil {
-		return err
-	}
-	go makeChatRobot(server)
-
-	r, w, _ := os.Pipe()
-	go UIServer(r, "127.0.0.1:8080")
-
-	return makeBashServer(server, requests, w)
+	return m.Run()
 }
 
 func makeChatRobot(server ssh.Channel) error {
