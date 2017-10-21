@@ -62,6 +62,7 @@ class Status extends Component {
 
 class App extends Component {
     render() {
+        const backend = new WebSocket(`ws://${TTY_SERVER}/tty`)
         return (
             <Container>
                 <Header>The terminal is operated by the hacker</Header>
@@ -70,7 +71,7 @@ class App extends Component {
                 <Grid divided>
                     <Grid.Row>
                         <Grid.Column height="600px">
-                            <XTerm backend={`ws://${TTY_SERVER}/tty`} />
+                            <XTerm backend={backend} />
                         </Grid.Column>
                     </Grid.Row>
                     <Grid.Row>

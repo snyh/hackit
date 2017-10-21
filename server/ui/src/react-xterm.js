@@ -43,10 +43,8 @@ class XTerm extends React.Component {
             this.xterm.write(this.props.value);
         }
 
-        const backend = this.props.backend;
-        if (backend !== undefined) {
-            this.backendWS = new WebSocket(backend)
-            this.xterm.attach(this.backendWS);
+        if (this.props.backend !== undefined) {
+            this.xterm.attach(this.props.backend);
         } else {
             this.writeln("Please setup the backend address.")
         }
@@ -56,8 +54,8 @@ class XTerm extends React.Component {
             this.xterm.destroy();
             this.xterm = null;
         }
-        if (this.backendWS) {
-            this.backendWS.close()
+        if (this.props.backend) {
+            this.props.backend.close()
         }
     }
     getXTerm() {
