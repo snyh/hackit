@@ -26,7 +26,7 @@ class MagicLinkWithEnsure extends Component {
             history.goBack();
         } else {
             console.log(history);
-            history.replace("/");
+            document.write("just close the window");
         }
     }
     render() {
@@ -136,7 +136,7 @@ class ListMagicLink extends Component {
                 <Divider/>
                 <Header> 当前有 {ids.length} 个连接 </Header>
                 <ul>{ids}</ul>
-                <Link to="/create"> 创建 </Link>
+                <Link to="/mysys/8080"> 创建 </Link>
             </div>
         );
     }
@@ -149,7 +149,7 @@ class App extends Component {
                 <Switch>
                     <Route exact path="/" component={ListMagicLink}/>
                     <Route path="/connect/:id" component={MagicLinkWithEnsure}/>
-                    <Route path="/create" component={UserView} />
+                    <Route path="/mysys/:port" component={UserView} />
                 </Switch>
             </Container>
         );

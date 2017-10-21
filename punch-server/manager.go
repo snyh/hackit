@@ -72,7 +72,7 @@ func (m *Manager) wipeDeadChannel() {
 		m.RUnlock()
 
 		for _, id := range dead {
-			log.Printf("Remove dead connection %q\n", id)
+			log.Printf("Remove dirty connection %q\n", id)
 			m.Remove(id)
 		}
 	}
