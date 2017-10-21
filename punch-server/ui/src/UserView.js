@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import XTerm from "./react-xterm.js";
 
-import { Loader, Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
+import { Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
 
 class Status extends Component {
     constructor(props) {

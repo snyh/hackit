@@ -1,14 +1,13 @@
 import React, { Component } from 'react';
 import './App.css';
 
-import { Icon, Message, Confirm, Button, Loader, Container, Header, Divider } from 'semantic-ui-react';
+import { Icon, Message, Confirm, Loader, Container, Header, Divider } from 'semantic-ui-react';
 
-import { Redirect, Route, Link, Switch } from 'react-router-dom';
+import { Route, Link, Switch } from 'react-router-dom';
 
 import XTerm from './react-xterm.js';
 
 import UserView from './UserView.js';
-
 
 const API_SERVER = "localhost:2207"
 
