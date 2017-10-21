@@ -7,6 +7,11 @@ import (
 	"net"
 )
 
+const (
+	SSHAddr = "0.0.0.0:2200"
+	UIAddr  = ":2207"
+)
+
 func main() {
 	config := &ssh.ServerConfig{
 		NoClientAuth: true,
@@ -26,14 +31,14 @@ func main() {
 	config.AddHostKey(private)
 
 	// Once a ServerConfig has been configured, connections can be accepted.
-	listener, err := net.Listen("tcp", "0.0.0.0:2200")
+	listener, err := net.Listen("tcp", SSHAddr)
 	if err != nil {
 		log.Fatalf("Failed to listen on 2200 (%s)", err)
 	}
 
 	m := NewManager()
 
-	go UIServer(":2207", m)
+	go UIServer(UIAddr, m)
 
 	// Accept all connections
 	log.Print("Listening on 2200...")

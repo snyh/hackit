@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 )
 
 func fixCSR(w http.ResponseWriter) {
@@ -26,7 +27,10 @@ func showList(m *Manager) http.HandlerFunc {
 }
 
 func UIServer(addr string, m *Manager) {
+	// See https://github.com/codegangsta/gin for get to known PORT environment.
+	if p := os.Getenv("PORT"); p != "" {
+		addr = ":" + p
+	}
 	http.Handle("/list", showList(m))
-
 	http.ListenAndServe(addr, nil)
 }
