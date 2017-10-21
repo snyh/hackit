@@ -88,7 +88,13 @@ func (m *Manager) Hacking(newChannel ssh.NewChannel, uuid string) {
 		fmt.Printf("Could not accept channel (%s)", err)
 		return
 	}
+
 	rChannel, rReqs := m.Get(uuid)
+	if rChannel == nil || rReqs == nil {
+		cChannel.Write([]byte("Invalid Magic key\n"))
+		cChannel.Close()
+		return
+	}
 
 	forwardRequests(rChannel, rReqs, cChannel, cReqs)
 

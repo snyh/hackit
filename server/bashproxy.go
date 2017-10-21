@@ -23,7 +23,6 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 		case "shell", "ping":
 			req.Reply(true, nil)
 		case "pty-req":
-
 			termLen := req.Payload[3]
 			w, h := parseDims(req.Payload[termLen+4:])
 			log.Print("Creating pty...", w, h)
@@ -32,7 +31,6 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 		case "window-change":
 			w, h := parseDims(req.Payload)
 			SetWinsize(bashf.Fd(), w, h)
-
 		default:
 			fmt.Println("bad things..", req.Type)
 			if req.WantReply {
