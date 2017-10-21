@@ -20,7 +20,7 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 		case "chat":
 			//			fmt.Printf("\033[31m %s \033[0m\n", req.Payload)
 			req.Reply(true, nil)
-		case "shell":
+		case "shell", "ping":
 			req.Reply(true, nil)
 		case "pty-req":
 

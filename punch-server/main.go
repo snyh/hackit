@@ -54,7 +54,7 @@ func main() {
 
 func dispatch(m *Manager, tcpConn net.Conn, config *ssh.ServerConfig) error {
 	// Before use, a handshake must be performed on the incoming net.Conn.
-	sshConn, chans, reqs, err := ssh.NewServerConn(tcpConn, config)
+	sshConn, channels, reqs, err := ssh.NewServerConn(tcpConn, config)
 	if err != nil {
 		log.Printf("Failed to handshake (%s)", err)
 		return err
@@ -66,7 +66,9 @@ func dispatch(m *Manager, tcpConn net.Conn, config *ssh.ServerConfig) error {
 			id := m.Next()
 			req.Reply(true, []byte(id))
 			log.Printf("New SSH connection \033[31mHackMe\033[0m %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
-			nch := <-chans
+
+			// We only support one channel per ssh connection.
+			nch := <-channels
 			ch, reqs, err := nch.Accept()
 			if err != nil {
 				return err
@@ -75,7 +77,9 @@ func dispatch(m *Manager, tcpConn net.Conn, config *ssh.ServerConfig) error {
 		case "hacking":
 			log.Printf("New SSH connection \033[31mHacking\033[0m %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
 			req.Reply(true, nil)
-			go m.Hacking(<-chans, string(req.Payload))
+
+			// We only support one channel per ssh connection.
+			go m.Hacking(<-channels, string(req.Payload))
 			log.Println("ENDDDDDDDDDDHACKING>>>")
 		default:
 			return tcpConn.Close()

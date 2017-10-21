@@ -5,33 +5,73 @@ import (
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
+	"log"
 	"sync"
+	"time"
 )
 
 type Manager struct {
 	_core map[string]ssh.Channel
 	_reqs map[string]<-chan *ssh.Request
+	sync.RWMutex
 }
 
 func NewManager() *Manager {
-	return &Manager{
+	m := &Manager{
 		_core: make(map[string]ssh.Channel),
 		_reqs: make(map[string]<-chan *ssh.Request),
 	}
+	go m.wipeDeadChannel()
+	return m
 }
 
-func (m *Manager) Match(uuid string) (ssh.Channel, <-chan *ssh.Request) {
-	return m._core[uuid], m._reqs[uuid]
-}
 func (m *Manager) Next() string {
+	m.Lock()
 	u1 := uuid.NewV4()
 	id := u1.String()
+	m.Unlock()
 	return id
 }
-func (m *Manager) Put(id string, ch ssh.Channel, reqs <-chan *ssh.Request) string {
-	m._core[id] = ch
-	m._reqs[id] = reqs
-	return id
+
+func (m *Manager) Get(uuid string) (ssh.Channel, <-chan *ssh.Request) {
+	m.RLock()
+	defer m.RUnlock()
+	return m._core[uuid], m._reqs[uuid]
+}
+func (m *Manager) Put(uuid string, ch ssh.Channel, reqs <-chan *ssh.Request) string {
+	m.Lock()
+	m._core[uuid] = ch
+	m._reqs[uuid] = reqs
+	m.Unlock()
+	return uuid
+}
+func (m *Manager) Remove(uuid string) {
+	m.Lock()
+	delete(m._core, uuid)
+	delete(m._reqs, uuid)
+	m.Unlock()
+}
+
+func (m *Manager) wipeDeadChannel() {
+	for {
+		time.Sleep(time.Second)
+
+		var dead []string
+
+		m.RLock()
+		for id, c := range m._core {
+			_, err := c.SendRequest("ping", false, nil)
+			if err != nil {
+				dead = append(dead, id)
+			}
+		}
+		m.RUnlock()
+
+		for _, id := range dead {
+			log.Printf("Remove dead connection %q\n", id)
+			m.Remove(id)
+		}
+	}
 }
 
 func (m *Manager) list() []string {
@@ -48,13 +88,14 @@ func (m *Manager) Hacking(newChannel ssh.NewChannel, uuid string) {
 		fmt.Printf("Could not accept channel (%s)", err)
 		return
 	}
-	rChannel, rReqs := m.Match(uuid)
+	rChannel, rReqs := m.Get(uuid)
 
 	forwardRequests(rChannel, rReqs, cChannel, cReqs)
-	forwardChannel(rChannel, cChannel)
+
+	m.forwardChannel(rChannel, cChannel)
 }
 
-func forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
+func (m *Manager) forwardChannel(c1 ssh.Channel, c2 ssh.Channel) {
 	close := func() {
 		c1.Close()
 		c2.Close()
