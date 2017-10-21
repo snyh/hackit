@@ -5,8 +5,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os/exec"
-	"time"
 )
 
 var upgrader = websocket.Upgrader{
@@ -29,25 +27,4 @@ func serveWs(f io.Reader) http.HandlerFunc {
 		}()
 		go wsPing(ws, done)
 	}
-}
-
-func serveStatus(m *Manager) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fixCSR(w)
-		writeJSON(w, m.uuid)
-	}
-}
-
-func (m *Manager) HTTPServer(f io.Reader, addr string) {
-	http.HandleFunc("/tty/status", serveStatus(m))
-	http.HandleFunc("/tty", serveWs(f))
-	go func() {
-		time.Sleep(time.Millisecond * 20)
-		if true {
-			log.Printf("Please open %q to see more informations\n", "http://"+addr)
-		} else {
-			exec.Command("xdg-open", "http://"+addr).Run()
-		}
-	}()
-	log.Fatal(http.ListenAndServe(addr, nil))
 }

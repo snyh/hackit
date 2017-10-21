@@ -14,6 +14,39 @@ import (
 	"unsafe"
 )
 
+type HackItConn struct {
+	uuid    string
+	channel ssh.Channel
+	reqs    <-chan *ssh.Request
+}
+
+func (m *HackItConn) Run(printer io.Writer) error {
+	return runBash(m.channel, m.reqs, printer)
+}
+
+func NewHackItConn(serveAddr string) (*HackItConn, error) {
+	sshConfig := &ssh.ClientConfig{
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
+	client, err := ssh.Dial("tcp", serveAddr, sshConfig)
+	if err != nil {
+		return nil, err
+	}
+	_, uuid, err := client.SendRequest("hackme", true, nil)
+	if err != nil {
+		return nil, err
+	}
+	channel, requests, err := client.OpenChannel("hackme", nil)
+	if err != nil {
+		return nil, err
+	}
+	return &HackItConn{
+		uuid:    string(uuid),
+		channel: channel,
+		reqs:    requests,
+	}, nil
+}
+
 func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 	for req := range reqs {
 		switch req.Type {
@@ -42,7 +75,7 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 	fmt.Println("EndOfRequest...")
 }
 
-func makeBashServer(connection ssh.Channel, reqs <-chan *ssh.Request, printer io.Writer) error {
+func runBash(connection ssh.Channel, reqs <-chan *ssh.Request, printer io.Writer) error {
 	// Fire up bash for this session
 	bash := exec.Command("bash")
 

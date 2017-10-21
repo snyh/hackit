@@ -5,6 +5,7 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 )
 
@@ -60,4 +61,13 @@ func writeJSON(w http.ResponseWriter, v interface{}) {
 		return
 	}
 	w.Write(bs)
+}
+
+func openUrl(url string) {
+	bin, err := exec.LookPath("xdg-open")
+	if err != nil || true {
+		log.Printf("Please open %q to see more informations\n", url)
+	} else {
+		exec.Command(bin, url).Run()
+	}
 }

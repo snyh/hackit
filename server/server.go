@@ -2,81 +2,85 @@ package main
 
 import (
 	"fmt"
-	"golang.org/x/crypto/ssh"
+	"io"
+	"log"
+	"net/http"
 	"os"
 	"time"
 )
 
-const (
+var (
 	PunchServerAddr = "localhost:2200"
+	LocalServerAddr = "localhost:8080"
 )
 
 func main() {
-	err := connectToHost(PunchServerAddr)
+	if p := os.Getenv("PORT"); p != "" {
+		LocalServerAddr = ":" + p
+	}
+	m, err := NewManager(PunchServerAddr, LocalServerAddr)
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
-	fmt.Println("Exit successfully")
+	if err := m.Run(); err != nil {
+		fmt.Println("ERR:", err)
+	}
 }
+
+type Status string
+
+const (
+	StatusOnline    = "online"
+	StatusListen    = "listen"
+	StatusConnected = "connected"
+	StatusError     = "error"
+)
 
 type Manager struct {
-	uuid    string
-	channel ssh.Channel
-	reqs    <-chan *ssh.Request
+	status     Status
+	hackitAddr string
+	localAddr  string
 }
 
-func NewManager(client *ssh.Client) (*Manager, error) {
-	_, uuid, err := client.SendRequest("hackme", true, nil)
-	if err != nil {
-		return nil, err
+func NewManager(hackitAddr string, localAddr string) (*Manager, error) {
+	m := &Manager{
+		status:     StatusOnline,
+		hackitAddr: hackitAddr,
+		localAddr:  localAddr,
 	}
-	fmt.Printf("UUID is %q\n", string(uuid))
+	return m, nil
+}
 
-	channel, requests, err := client.OpenChannel("hackme", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Manager{
-		uuid:    string(uuid),
-		channel: channel,
-		reqs:    requests,
-	}, nil
+func (m *Manager) openHackIt(apiServer string) (*HackItConn, error) {
+	return NewHackItConn(apiServer)
 }
 
 func (m *Manager) Run() error {
-	go makeChatRobot(m.channel)
-	r, w, _ := os.Pipe()
-
-	var addr = "127.0.0.1:8080"
-	if p := os.Getenv("PORT"); p != "" {
-		addr = ":" + p
-	}
-	go m.HTTPServer(r, addr)
-	return makeBashServer(m.channel, m.reqs, w)
-}
-
-func connectToHost(host string) error {
-	sshConfig := &ssh.ClientConfig{
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	}
-	client, err := ssh.Dial("tcp", host, sshConfig)
+	conn, err := NewHackItConn(m.hackitAddr)
 	if err != nil {
 		return err
 	}
-	m, err := NewManager(client)
+	r, w, err := os.Pipe()
 	if err != nil {
 		return err
 	}
-	return m.Run()
+	go HTTPServer(r, m.localAddr, conn.uuid)
+	return conn.Run(w)
 }
 
-func makeChatRobot(server ssh.Channel) error {
+func HTTPServer(f io.Reader, addr string, uuid string) {
+	http.HandleFunc("/tty/status", serveStatus(uuid))
+	http.HandleFunc("/tty", serveWs(f))
 	go func() {
-		for {
-			<-time.After(time.Second)
-			server.SendRequest("chat", false, []byte(fmt.Sprintf("Server Time is : %s", time.Now())))
-		}
+		time.Sleep(time.Millisecond * 20)
+		openUrl("http://" + addr)
 	}()
-	return nil
+	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func serveStatus(uuid string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fixCSR(w)
+		writeJSON(w, uuid)
+	}
 }
