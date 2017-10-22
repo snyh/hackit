@@ -58,6 +58,15 @@ class UserView extends Component {
     }
 }
 
+function compareHackItConn(a, b) {
+    const ss = ["running", "readdy", "closed"]
+    const cs = ss.indexOf(a.Status) - ss.indexOf(b.Status)
+    if (cs !== 0) {
+        return cs
+    }
+    return a.CreateAt < b.CreateAt
+}
+
 class ListConnection extends Component {
     state = {
         connections: [],
@@ -67,6 +76,7 @@ class ListConnection extends Component {
         const tick = () => {
             fetch(`http://${this.props.localServer}/listTTYs`).then( (resp) => {
                 resp.json().then( s => {
+                    s.sort( compareHackItConn)
                     this.setState({
                         connections: s ? s : []
                     })
@@ -103,7 +113,6 @@ class ListConnection extends Component {
     }
 
     render() {
-        console.log("???", this.state)
         const rows = this.state.connections.map ( (v) =>  {
             return (
                 <Table.Row key={v.UUID}>
@@ -112,7 +121,7 @@ class ListConnection extends Component {
                         {v.Status}
                     </Table.Cell>
                     <Table.Cell>{v.UUID}</Table.Cell>
-                    <Table.Cell>{Date(v.CreateAt)}</Table.Cell>
+                    <Table.Cell>{(new Date(v.CreateAt)).toString()}</Table.Cell>
                 </Table.Row>
             );
         })
