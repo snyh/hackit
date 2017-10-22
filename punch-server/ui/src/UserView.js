@@ -123,7 +123,7 @@ class ListConnection extends Component {
     tryGetDetailWidget() {
         const uuid = this.state.detail
         if (uuid) {
-            return <DetailView uuid={uuid} />
+            return <DetailView localServer={this.props.localServer} uuid={uuid} />
         }
         return null
     }
@@ -224,7 +224,7 @@ class DetailView extends Component {
         this.state = {
             backend: undefined
         }
-        const backend = new WebSocket(`ws://localhost:8080/tty/${props.uuid}`)
+        const backend = new WebSocket(`ws://${props.localServer}/tty/${props.uuid}`)
         backend.onopen = this.setBackend.bind(this, backend)
         backend.onclose = this.setBackend.bind(this, undefined)
     }

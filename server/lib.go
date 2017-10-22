@@ -68,7 +68,7 @@ func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 
 func openUrl(url string) {
 	bin, err := exec.LookPath("xdg-open")
-	if err != nil || true {
+	if err != nil {
 		log.Printf("Please open %q to see more informations\n", url)
 	} else {
 		exec.Command(bin, url).Run()

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 func showList(m *Manager) http.HandlerFunc {
@@ -14,14 +17,42 @@ func showList(m *Manager) http.HandlerFunc {
 	}
 }
 
+type ReactRouter struct {
+	fs    http.Handler
+	other http.Handler
+}
+
+func (rr ReactRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p := r.URL.Path
+
+	if strings.HasPrefix(r.URL.Path, "/ws") {
+		rr.other.ServeHTTP(w, r)
+		return
+	}
+
+	if _, err := os.Stat("./ui/build/" + p); err != nil {
+		bs, _ := ioutil.ReadFile("./ui/build/index.html")
+		w.WriteHeader(200)
+		w.Write(bs)
+		return
+	} else {
+		rr.fs.ServeHTTP(w, r)
+	}
+}
+
 func UIServer(addr string, m *Manager) {
 	// See https://github.com/codegangsta/gin for get to known PORT environment.
 	if p := os.Getenv("PORT"); p != "" {
 		addr = ":" + p
 	}
-	http.Handle("/list", showList(m))
-	http.Handle("/connect", connectByWS(m))
-	http.ListenAndServe(addr, nil)
+
+	r := mux.NewRouter()
+	r.HandleFunc("/ws", connectByWS(m))
+
+	http.ListenAndServe(addr, ReactRouter{
+		fs:    http.FileServer(http.Dir("./ui/build/")),
+		other: r,
+	})
 }
 
 var upgrader = websocket.Upgrader{

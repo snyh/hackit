@@ -9,7 +9,7 @@ import XTerm from './react-xterm.js';
 
 import UserView from './UserView.js';
 
-const API_SERVER = "localhost:2207"
+const API_SERVER = `${window.location.hostname}:2207`
 
 class MagicLinkWithEnsure extends Component {
     state = {
@@ -62,7 +62,7 @@ class MagicLink extends Component {
         }
 
         const id = this.props.magicKey;
-        const backend = new WebSocket(`ws://${API_SERVER}/connect?uuid=${id}`)
+        const backend = new WebSocket(`ws://${API_SERVER}/ws?uuid=${id}`)
         backend.onclose = this.handleError.bind(this)
         backend.onopen = this.handleOpen.bind(this, backend)
     }
@@ -131,9 +131,8 @@ class ListMagicLink extends Component {
             <div>
                 <Header> HackIt 管理后台 <Link to="/">Home</Link> </Header>
                 <Divider/>
-                <Header> 当前有 {ids.length} 个连接 </Header>
-                <ul>{ids}</ul>
-                <Link to="/mysys/8080"> 本地系统状态 </Link>
+                <Header> 当前有 {ids.length} 个有效连接 </Header>
+                <Link to="/mysys/7777"> 本地系统状态(localhost:7777) </Link>
             </div>
         );
     }

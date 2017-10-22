@@ -7,17 +7,29 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 var (
-	PunchServerAddr = "localhost:2200"
-	LocalServerAddr = "localhost:8080"
+	PunchServerAddr = "hackit.snyh.org:2200"
+	LocalServerAddr = "localhost:7777"
 )
+
+func OpenBrowser() {
+	go func() {
+		time.Sleep(time.Millisecond * 500)
+		openUrl("http://hackit.snyh.org/mysys/7777")
+	}()
+}
 
 func main() {
 	if p := os.Getenv("PORT"); p != "" {
 		LocalServerAddr = ":" + p
 	}
+
+	fmt.Printf("开启本地监听%q，并连接到%q\n", LocalServerAddr, PunchServerAddr)
+	OpenBrowser()
+
 	m, err := NewManager(PunchServerAddr, LocalServerAddr)
 	if err != nil {
 		fmt.Println("ERR:", err)
