@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import './App.css';
 
-import { Icon, Message, Confirm, Loader, Container, Header, Divider } from 'semantic-ui-react';
+import { Icon, Message, Confirm, Container, Header, Divider } from 'semantic-ui-react';
 
 import { Route, Link, Switch } from 'react-router-dom';
 
@@ -85,16 +85,14 @@ class MagicLink extends Component {
         const id = this.props.magicKey
         switch(this.state.status) {
             case "error":
-                return (<div>链接已过期~~~请找小伙伴重新生成一份吧</div>)
+                return (<div>链接已过期~~~请找小伙伴重新生成一份吧 <Link to="/">Home</Link></div>)
             case "loading":
                 return (<div>载入中~~~</div>)
             default:
                 return (
                     <div>
-                        Hello... try connecting to {id}
-                        <XTerm backend={this.state.backend}>
-                            <Loader content="连接中" />
-                        </XTerm>
+                        Hello... try connecting to {id}  <Link to="/">Home</Link>
+                        <XTerm backend={this.state.backend}></XTerm>
                     </div>
                 )
         }
@@ -135,7 +133,7 @@ class ListMagicLink extends Component {
                 <Divider/>
                 <Header> 当前有 {ids.length} 个连接 </Header>
                 <ul>{ids}</ul>
-                <Link to="/mysys/8080"> 创建 </Link>
+                <Link to="/mysys/8080"> 本地系统状态 </Link>
             </div>
         );
     }

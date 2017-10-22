@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"io"
-	"log"
 	"net/http"
 	"os"
-	"time"
 )
 
 var (
@@ -25,6 +25,7 @@ func main() {
 	if err := m.Run(); err != nil {
 		fmt.Println("ERR:", err)
 	}
+	fmt.Println("Exit successfully")
 }
 
 type Status string
@@ -40,6 +41,7 @@ type Manager struct {
 	status     Status
 	hackitAddr string
 	localAddr  string
+	conns      map[string]*HackItConn
 }
 
 func NewManager(hackitAddr string, localAddr string) (*Manager, error) {
@@ -47,6 +49,7 @@ func NewManager(hackitAddr string, localAddr string) (*Manager, error) {
 		status:     StatusOnline,
 		hackitAddr: hackitAddr,
 		localAddr:  localAddr,
+		conns:      make(map[string]*HackItConn),
 	}
 	return m, nil
 }
@@ -56,31 +59,76 @@ func (m *Manager) openHackIt(apiServer string) (*HackItConn, error) {
 }
 
 func (m *Manager) Run() error {
+	r := mux.NewRouter()
+	r.HandleFunc("/status", m.handleStatus)
+	r.HandleFunc("/listTTYs", m.handleListTTYs)
+	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.handleConnect)
+	r.HandleFunc("/requestTTY", m.handleRequestConnect)
+	http.Handle("/", r)
+	return http.ListenAndServe(m.localAddr, nil)
+}
+
+// TODO: remove this from global scope
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
+
+func (m *Manager) handleConnect(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	conn, ok := m.conns[vars["uuid"]]
+	if !ok {
+		writeJSON(w, 404, "invalid magic key")
+		return
+	}
+	rp, wp, err := os.Pipe()
+	if err != nil {
+		writeJSON(w, 501, err)
+		return
+	}
+	conn.AttachPrinter(wp)
+
+	// setup websocket
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		writeJSON(w, 501, err)
+		return
+	}
+
+	done := make(chan struct{})
+	go func() {
+		io.Copy(wsWrap{ws}, rp)
+		done <- struct{}{}
+		ws.Close()
+	}()
+	go wsPing(ws, done)
+}
+
+func (m *Manager) handleRequestConnect(w http.ResponseWriter, r *http.Request) {
+	fixCSR(w)
 	conn, err := NewHackItConn(m.hackitAddr)
 	if err != nil {
-		return err
+		writeJSON(w, 502, err.Error())
+		return
 	}
-	r, w, err := os.Pipe()
+	err = conn.Start()
 	if err != nil {
-		return err
+		writeJSON(w, 502, err.Error())
+		return
 	}
-	go HTTPServer(r, m.localAddr, conn.uuid)
-	return conn.Run(w)
+
+	m.conns[conn.UUID] = conn
+	writeJSON(w, 200, conn.UUID)
 }
 
-func HTTPServer(f io.Reader, addr string, uuid string) {
-	http.HandleFunc("/tty/status", serveStatus(uuid))
-	http.HandleFunc("/tty", serveWs(f))
-	go func() {
-		time.Sleep(time.Millisecond * 20)
-		openUrl("http://" + addr)
-	}()
-	log.Fatal(http.ListenAndServe(addr, nil))
+func (m *Manager) handleStatus(w http.ResponseWriter, r *http.Request) {
+	fixCSR(w)
+	writeJSON(w, 200, "online")
 }
-
-func serveStatus(uuid string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		fixCSR(w)
-		writeJSON(w, uuid)
+func (m *Manager) handleListTTYs(w http.ResponseWriter, r *http.Request) {
+	fixCSR(w)
+	var ret = make([]*HackItConn, 0)
+	for _, v := range m.conns {
+		ret = append(ret, v)
 	}
+	writeJSON(w, 200, ret)
 }

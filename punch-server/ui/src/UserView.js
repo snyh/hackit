@@ -1,102 +1,146 @@
 import React, { Component } from 'react';
 import XTerm from "./react-xterm.js";
 
-import { Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
-
-class Status extends Component {
-    constructor(props) {
-        super(props)
-        this.state = {
-            uuid : "unknown",
-        }
-    }
-
-    componentDidMount() {
-        const tick = () => {
-            fetch(`http://${this.props.ttyServer}/tty/status`).then( (resp) => {
-                resp.json().then( id => {
-                    this.setState({uuid: id});
-                    this.timer = setTimeout(tick, 3000);
-                })
-            }).catch( () => {
-                this.setState({uuid: "invalid"})
-                this.timer = setTimeout(tick, 3000);
-            })
-        };
-        tick();
-    }
-
-    componentWillUnmount() {
-        clearTimeout(this.timer);
-    }
-
-    render() {
-        const key = this.state.uuid
-        const url = `http://localhost:3000/connect/${key}`
-        return (
-            <div>
-                The magic key is <b>{key}</b>
-                <p>
-                    you can send the link below to your friend to hack your system
-                    <Message>
-                        <a href={url} target="_blank">{url}</a>
-                    </Message>
-                </p>
-            </div>
-        )
-    }
-}
-
-
-const LocalStatusUnknown = "unknown"
-const LocalStatusError = "error"
-const LocalStatusConnected = "connected"
+import { Table, Icon, Button, Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
+import { Link } from 'react-router-dom';
 
 class UserView extends Component {
     constructor(props) {
         super(props)
 
         const port = this.props.match.params.port;
-
         this.state = {
-            localStatus: LocalStatusUnknown,
-            invalidSource: port === undefined
+            localStatus: "unknown",
         }
-
-        this.ttyServer = `127.0.0.1:${port}`
-        const backend = new WebSocket(`ws://${this.ttyServer}/tty`)
-        backend.onerror = this.toError.bind(this)
-        backend.onopen = this.toConnected.bind(this, backend)
+        this.localServer = `127.0.0.1:${port}`
+    }
+    componentDidMount() {
+        const tick = () => {
+            fetch(`http://${this.localServer}/status`).then( (resp) => {
+                resp.json().then( s => {
+                    this.switchStatus(s)
+                    this.timer = setTimeout(tick, 3000);
+                })
+            }).catch( () => {
+                this.switchStatus("offline")
+                this.timer = setTimeout(tick, 3000);
+            })
+        };
+        tick();
+    }
+    componentWillUnmount() {
+        clearTimeout(this.timer);
     }
 
-    toError() {
+    switchStatus(s) {
+        if (["unknown","error", "online", "offline", "connected"].indexOf(s) === -1) {
+            alert(`Invalid status. ${s}`)
+        }
         this.setState({
-            localStatus: LocalStatusError
-        })
-    }
-    toConnected(ws) {
-        this.setState({
-            localStatus: LocalStatusConnected,
-            backend: ws
+            localStatus: s
         })
     }
 
     render() {
-        console.log("SSS:", this.state)
         switch (this.state.localStatus) {
-            case LocalStatusError:
-                return (<CreateView />);
-            case LocalStatusConnected:
-                return (<DetailView ttyServer={this.ttyServer} backend={this.state.backend}/>)
+            case "online":
+                return (
+                    <div>
+                        <Header>已连接到本地服务器 {this.localServer}</Header>
+                        <ListConnection localServer={this.localServer}/>
+                    </div>
+                );
+            case "offline":
+                return (<div>无法与本地服务器连接，请使用客户端打开本页面</div>)
             default:
-                return (<div>loading</div>)
+                return (<div>loading {this.state.localStatus}</div>)
         }
     }
 }
 
-class CreateView extends Component {
+class ListConnection extends Component {
+    state = {
+        connections: [],
+        msgType : "hidden"
+    }
+    componentDidMount() {
+        const tick = () => {
+            fetch(`http://${this.props.localServer}/listTTYs`).then( (resp) => {
+                resp.json().then( s => {
+                    this.setState({
+                        connections: s ? s : []
+                    })
+                    this.timer = setTimeout(tick, 3000);
+                })
+            }).catch( () => {
+                this.setState({
+                        connections: []
+                })
+                this.timer = setTimeout(tick, 3000);
+            })
+        };
+        tick();
+    }
+    componentWillUnmount() {
+        clearTimeout(this.timer);
+    }
+
+    requestMagicKey = ()=>{
+        const api = `http://${this.props.localServer}/requestTTY`
+        fetch(api).then( (resp) => {
+            resp.json().then( uuid => {
+                this.setState({
+                    msgType: "info",
+                    msg: `a new magic key ${uuid} has been generated.`
+                })
+            })
+        }).catch( (err) => {
+            this.setState({
+                msgType: "error",
+                msg: `${err}`
+            })
+        })
+    }
+
     render() {
-        return <div>请使用hackit的客户端进入本页面</div>
+        console.log("???", this.state)
+        const rows = this.state.connections.map ( (v) =>  {
+            return (
+                <Table.Row key={v.UUID}>
+                    <Table.Cell>
+                        <Icon name='cloud' size='large' color={ v.Status === "running" ? 'green' : 'grey' } />
+                        {v.Status}
+                    </Table.Cell>
+                    <Table.Cell>{v.UUID}</Table.Cell>
+                    <Table.Cell>{Date(v.CreateAt)}</Table.Cell>
+                </Table.Row>
+            );
+        })
+
+        const msgType = {
+            [this.state.msgType]: true,
+        }
+        return (
+            <div>
+                <Link to="/">Home</Link>
+
+                <Table striped>
+                    <Table.Header>
+                        <Table.Row>
+                            <Table.HeaderCell>状态</Table.HeaderCell>
+                            <Table.HeaderCell>MagicKey</Table.HeaderCell>
+                            <Table.HeaderCell>创建时间</Table.HeaderCell>
+                        </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
+                        {rows}
+                    </Table.Body>
+                </Table>
+
+                你还可以<Button onClick={this.requestMagicKey}>生成</Button>一个玩玩
+                <Message {...msgType}>{this.state.msg}</Message>
+            </div>
+        );
     }
 }
 
@@ -105,7 +149,6 @@ class DetailView extends Component {
         return (
             <Container>
                 <Header>The terminal is operated by the hacker !</Header>
-                <Status ttyServer={this.props.ttyServer}/>
                 <Divider/>
                 <Grid divided>
                     <Grid.Row>

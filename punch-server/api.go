@@ -10,7 +10,7 @@ import (
 func showList(m *Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fixCSR(w)
-		writeJSON(w, m.list())
+		writeJSON(w, 200, m.list())
 	}
 }
 
@@ -35,15 +35,13 @@ func connectByWS(m *Manager) http.HandlerFunc {
 		uuid := r.FormValue("uuid")
 
 		if !m.Has(uuid) {
-			w.WriteHeader(403)
-			writeJSON(w, "Invalid magic key")
+			writeJSON(w, 403, "Invalid magic key")
 			return
 		}
 
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			w.WriteHeader(501)
-			writeJSON(w, err.Error())
+			writeJSON(w, 501, err.Error())
 			return
 		}
 
@@ -52,8 +50,7 @@ func connectByWS(m *Manager) http.HandlerFunc {
 
 		c, err := NewWebSocketClientChannel(uuid, ws)
 		if err != nil {
-			w.WriteHeader(501)
-			writeJSON(w, err.Error())
+			writeJSON(w, 501, err.Error())
 			return
 		}
 

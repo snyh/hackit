@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"github.com/kr/pty"
 	"golang.org/x/crypto/ssh"
@@ -10,18 +9,22 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
-	"unsafe"
+	"time"
 )
 
+type HackItConnStatus string
+
 type HackItConn struct {
-	uuid    string
+	UUID     string
+	Status   HackItConnStatus
+	CreateAt time.Time
+
 	channel ssh.Channel
 	reqs    <-chan *ssh.Request
-}
+	tty     *os.File
 
-func (m *HackItConn) Run(printer io.Writer) error {
-	return runBash(m.channel, m.reqs, printer)
+	printer WriteSwitcher
+	once    sync.Once
 }
 
 func NewHackItConn(serveAddr string) (*HackItConn, error) {
@@ -41,14 +44,20 @@ func NewHackItConn(serveAddr string) (*HackItConn, error) {
 		return nil, err
 	}
 	return &HackItConn{
-		uuid:    string(uuid),
+		UUID:     string(uuid),
+		Status:   "ready",
+		CreateAt: time.Now().UTC(),
+
 		channel: channel,
 		reqs:    requests,
+		printer: NewSimpleSwitcher(),
 	}, nil
 }
 
-func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
-	for req := range reqs {
+func (c *HackItConn) AttachPrinter(p io.Writer) { c.printer.Switch(p) }
+
+func (c *HackItConn) handleRequest() {
+	for req := range c.reqs {
 		switch req.Type {
 		case "chat":
 			//			fmt.Printf("\033[31m %s \033[0m\n", req.Payload)
@@ -59,79 +68,60 @@ func handleRequest(bashf *os.File, reqs <-chan *ssh.Request) {
 			termLen := req.Payload[3]
 			w, h := parseDims(req.Payload[termLen+4:])
 			log.Print("Creating pty...", w, h)
-			SetWinsize(bashf.Fd(), w, h)
+			SetWinsize(c.tty.Fd(), w, h)
 			req.Reply(true, nil)
 		case "window-change":
 			w, h := parseDims(req.Payload)
-			SetWinsize(bashf.Fd(), w, h)
+			SetWinsize(c.tty.Fd(), w, h)
 		default:
 			fmt.Println("bad things..", req.Type)
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-
 		}
 	}
 	fmt.Println("EndOfRequest...")
 }
 
-func runBash(connection ssh.Channel, reqs <-chan *ssh.Request, printer io.Writer) error {
-	// Fire up bash for this session
-	bash := exec.Command("bash")
-
-	// Prepare teardown function
+func (c *HackItConn) Stop() error {
 	close := func() {
-		connection.Close()
+		c.Status = "closed"
+		c.channel.Close()
+		c.tty.Close()
+		log.Printf("Session closed")
+	}
+	c.once.Do(close)
+	return nil
+}
+
+func (c *HackItConn) Start() error {
+	if c.tty != nil {
+		panic("can't running again")
+	}
+
+	var err error
+
+	bash := exec.Command("bash")
+	c.tty, err = pty.Start(bash)
+	if err != nil {
 		_, err := bash.Process.Wait()
 		if err != nil {
 			log.Printf("Failed to exit bash (%s)", err)
 		}
-		log.Printf("Session closed")
-	}
-
-	// Allocate a terminal for this channel
-	bashf, err := pty.Start(bash)
-
-	if err != nil {
-		close()
+		c.Stop()
 		return err
 	}
-	//pipe session to bash and visa-versa
-	var once sync.Once
-	go func() {
-		io.Copy(connection, io.TeeReader(bashf, printer))
-		once.Do(close)
-	}()
-	go func() {
-		io.Copy(bashf, connection)
-		once.Do(close)
-	}()
 
-	handleRequest(bashf, reqs)
+	c.Status = "running"
+
+	go c.handleRequest()
+	go func() {
+		io.Copy(c.channel, io.TeeReader(c.tty, c.printer))
+		c.Stop()
+	}()
+	go func() {
+		io.Copy(c.tty, c.channel)
+		c.Stop()
+	}()
 	return nil
-}
-
-// =======================
-
-// parseDims extracts terminal dimensions (width x height) from the provided buffer.
-func parseDims(b []byte) (uint32, uint32) {
-	w := binary.BigEndian.Uint32(b)
-	h := binary.BigEndian.Uint32(b[4:])
-	return w, h
-}
-
-// ======================
-
-// Winsize stores the Height and Width of a terminal.
-type Winsize struct {
-	Height uint16
-	Width  uint16
-	x      uint16 // unused
-	y      uint16 // unused
-}
-
-// SetWinsize sets the size of the given pty.
-func SetWinsize(fd uintptr, w, h uint32) {
-	ws := &Winsize{Width: uint16(w), Height: uint16(h)}
-	syscall.Syscall(syscall.SYS_IOCTL, fd, uintptr(syscall.TIOCSWINSZ), uintptr(unsafe.Pointer(ws)))
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"github.com/gorilla/websocket"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
@@ -54,12 +56,13 @@ func (w wsWrap) Close() error {
 func fixCSR(w http.ResponseWriter) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 }
-func writeJSON(w http.ResponseWriter, v interface{}) {
+func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 	bs, err := json.Marshal(v)
 	if err != nil {
-		w.WriteHeader(501)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	w.WriteHeader(code)
 	w.Write(bs)
 }
 
@@ -71,3 +74,17 @@ func openUrl(url string) {
 		exec.Command(bin, url).Run()
 	}
 }
+
+type WriteSwitcher interface {
+	io.Writer
+	Switch(io.Writer)
+}
+type SimpleSwitcher struct {
+	inner io.Writer
+}
+
+func NewSimpleSwitcher() WriteSwitcher {
+	return &SimpleSwitcher{ioutil.Discard}
+}
+func (p *SimpleSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
+func (p *SimpleSwitcher) Switch(w io.Writer)            { p.inner = w }
