@@ -93,6 +93,7 @@ func (m *Manager) Hacking(channel ClientChannel, uuid string) {
 		channel.Close()
 		return
 	}
+	rChannel.SendRequest("hacking", false, nil)
 
 	forwardRequests(rChannel, rReqs, channel, channel.RequestChan())
 

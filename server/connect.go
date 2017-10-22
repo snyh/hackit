@@ -73,6 +73,9 @@ func (c *HackItConn) handleRequest() {
 		case "window-change":
 			w, h := parseDims(req.Payload)
 			SetWinsize(c.tty.Fd(), w, h)
+		case "hacking":
+			c.Status = "running"
+			req.Reply(true, nil)
 		default:
 			fmt.Println("bad things..", req.Type)
 			if req.WantReply {
@@ -112,7 +115,7 @@ func (c *HackItConn) Start() error {
 		return err
 	}
 
-	c.Status = "running"
+	c.Status = "ready"
 
 	go c.handleRequest()
 	go func() {
