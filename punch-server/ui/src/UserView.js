@@ -3,6 +3,8 @@ import XTerm from "./react-xterm.js";
 
 import { Table, Icon, Label, Button, Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
 import { Link } from 'react-router-dom';
+import {CopyToClipboard} from 'react-copy-to-clipboard';
+
 
 class UserView extends Component {
     constructor(props) {
@@ -137,8 +139,12 @@ class ListConnection extends Component {
                     <Table.Cell>
                         {v.UUID}
                         <Label.Group size="mini">
+                            <CopyToClipboard text={`有个小问题需要你协助，请访问 ${window.location.origin}/connect/${v.UUID} 来远程操作我的系统吧。`}
+                                             onCopy={() => {this.setState({copied: true});alert("Magic Key 拷贝成功")}}>
                             <ActionButton action="copy" status={v.Status}
                                           content="Copy MagicKey" icon='copy' />
+                            </CopyToClipboard>
+
                             <ActionButton action="see" status={v.Status}
                                           content="See" icon='camera retro' onClick={this.changeDetail.bind(this, v.UUID)}/>
                             <ActionButton action="delete" status={v.Status}
