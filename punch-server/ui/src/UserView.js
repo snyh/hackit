@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import XTerm from "./react-xterm.js";
 
-import { Table, Icon, Button, Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
+import { Table, Icon, Label, Button, Message, Container, Grid, Header, Divider } from 'semantic-ui-react';
 import { Link } from 'react-router-dom';
 
 class UserView extends Component {
@@ -112,15 +112,39 @@ class ListConnection extends Component {
         })
     }
 
+    changeDetail(uuid) {
+        this.setState({
+            detail: uuid,
+        })
+    }
+
+    tryGetDetailWidget() {
+        const uuid = this.state.detail
+        if (uuid) {
+            return <DetailView uuid={uuid} />
+        }
+        return null
+    }
+
     render() {
         const rows = this.state.connections.map ( (v) =>  {
             return (
                 <Table.Row key={v.UUID}>
                     <Table.Cell>
-                        <Icon name='cloud' size='large' color={ v.Status === "running" ? 'green' : 'grey' } />
+                        <Icon name='cloud' size='large' color={ v.Status !== "closed" ? 'green' : 'grey' } />
                         {v.Status}
                     </Table.Cell>
-                    <Table.Cell>{v.UUID}</Table.Cell>
+                    <Table.Cell>
+                        {v.UUID}
+                        <Label.Group size="mini">
+                            <ActionButton action="copy" status={v.Status}
+                                          content="Copy MagicKey" icon='copy' />
+                            <ActionButton action="see" status={v.Status}
+                                          content="See" icon='camera retro' onClick={this.changeDetail.bind(this, v.UUID)}/>
+                            <ActionButton action="delete" status={v.Status}
+                                   content="delete" icon='trash outline'/>
+                        </Label.Group>
+                    </Table.Cell>
                     <Table.Cell>{(new Date(v.CreateAt)).toString()}</Table.Cell>
                 </Table.Row>
             );
@@ -129,6 +153,7 @@ class ListConnection extends Component {
         const msgType = {
             [this.state.msgType]: true,
         }
+
         return (
             <div>
                 <Link to="/">Home</Link>
@@ -148,21 +173,76 @@ class ListConnection extends Component {
 
                 你还可以<Button onClick={this.requestMagicKey}>生成</Button>一个玩玩
                 <Message {...msgType}>{this.state.msg}</Message>
+                <Divider/>
+                {this.tryGetDetailWidget()}
             </div>
         );
     }
 }
 
-class DetailView extends Component {
+class ActionButton extends Component {
+    enabledFn = (action, status) => {
+        const colors = {
+            "copy": {
+                "ready": true,
+            },
+            "see": {
+                "running": true,
+                "closed": true
+            },
+            "delete": {
+                "ready": true,
+                "running": true,
+                "closed": true,
+            }
+        }
+        if (colors[action] === undefined) {
+            return false
+        }
+        return colors[action][status] === true
+    }
+
     render() {
+        const enabled  = this.enabledFn(this.props.action, this.props.status)
+        if (enabled) {
+            return <Label color="green" as='a' {...this.props} />
+        } else {
+            return <Label color="grey" {...this.props}/>
+        }
+    }
+}
+
+class DetailView extends Component {
+    constructor(props) {
+        super(props)
+        this.state = {
+            backend: undefined
+        }
+        const backend = new WebSocket(`ws://localhost:8080/tty/${props.uuid}`)
+        backend.onopen = this.setBackend.bind(this, backend)
+        backend.onclose = this.setBackend.bind(this, undefined)
+    }
+    setBackend(b) {
+        this.setState({
+            backend: b
+        })
+    }
+    componentWillUnmount() {
+        if (this.state.backend) {
+            this.state.backend.close()
+            this.setBackend(undefined)
+        }
+    }
+    render() {
+        const uuid = this.props.uuid;
         return (
             <Container>
-                <Header>The terminal is operated by the hacker !</Header>
+                <Header>{uuid} 以下为远程实时操作视角，你只可以查看。或在直接切断连接。</Header>
                 <Divider/>
                 <Grid divided>
                     <Grid.Row>
                         <Grid.Column height="600px">
-                            <XTerm backend={this.props.backend} />
+                            { this.state.backend ? <XTerm backend={this.state.backend} /> : <div>Connecting</div> }
                         </Grid.Column>
                     </Grid.Row>
                     <Grid.Row>
