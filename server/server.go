@@ -1,39 +1,44 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"time"
 )
 
-var (
-	PunchServerAddr = "hackit.snyh.org:2200"
-	LocalServerAddr = "localhost:7777"
-)
-
-func OpenBrowser() {
+func OpenBrowser(uiServer string, port string) {
 	go func() {
 		time.Sleep(time.Millisecond * 500)
-		openUrl("http://hackit.snyh.org/mysys/7777")
+		openUrl(fmt.Sprintf("%s/mysys/%s", uiServer, port))
 	}()
 }
 
+func findAPIAddress(remote string) string {
+	return "hackit.snyh.org:2200"
+}
+
 func main() {
+	var remoteURL, localAddr string
+	flag.StringVar(&remoteURL, "remote", "http://hackit.snyh.org", "the server address")
+	flag.StringVar(&localAddr, "local", "auto", "the local listen address")
+	flag.Parse()
+
 	if p := os.Getenv("PORT"); p != "" {
-		LocalServerAddr = ":" + p
+		localAddr = ":" + p
 	}
 
-	fmt.Printf("开启本地监听%q，并连接到%q\n", LocalServerAddr, PunchServerAddr)
-	OpenBrowser()
-
-	m, err := NewManager(PunchServerAddr, LocalServerAddr)
+	m, err := NewManager(findAPIAddress(remoteURL), localAddr)
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
+	OpenBrowser(remoteURL, m.port)
+
 	if err := m.Run(); err != nil {
 		fmt.Println("ERR:", err)
 	}
@@ -52,16 +57,31 @@ const (
 type Manager struct {
 	status     Status
 	hackitAddr string
-	localAddr  string
 	conns      map[string]*HackItConn
+
+	listener net.Listener
+	port     string
 }
 
 func NewManager(hackitAddr string, localAddr string) (*Manager, error) {
+	if localAddr == "auto" {
+		localAddr = "127.0.0.1:0"
+	}
+	l, err := net.Listen("tcp", localAddr)
+	if err != nil {
+		return nil, err
+	}
+	_, p, err := net.SplitHostPort(l.Addr().String())
+	if err != nil {
+		return nil, err
+	}
+
 	m := &Manager{
 		status:     StatusOnline,
 		hackitAddr: hackitAddr,
-		localAddr:  localAddr,
 		conns:      make(map[string]*HackItConn),
+		listener:   l,
+		port:       p,
 	}
 	return m, nil
 }
@@ -77,7 +97,7 @@ func (m *Manager) Run() error {
 	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.handleConnect)
 	r.HandleFunc("/requestTTY", m.handleRequestConnect)
 	http.Handle("/", r)
-	return http.ListenAndServe(m.localAddr, nil)
+	return http.Serve(m.listener, nil)
 }
 
 // TODO: remove this from global scope
