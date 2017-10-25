@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strings"
 )
 
 func showList(m *Manager) http.HandlerFunc {
@@ -19,13 +18,19 @@ func showList(m *Manager) http.HandlerFunc {
 
 type ReactRouter struct {
 	fs    http.Handler
-	other http.Handler
+	other *mux.Router
 }
 
 func (rr ReactRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Path
 
-	if strings.HasPrefix(r.URL.Path, "/ws") {
+	// if strings.HasPrefix(r.URL.Path, "/ws") {
+	// 	rr.other.ServeHTTP(w, r)
+	// 	return
+	// }
+
+	var m mux.RouteMatch
+	if rr.other.Match(r, &m) {
 		rr.other.ServeHTTP(w, r)
 		return
 	}
@@ -40,7 +45,14 @@ func (rr ReactRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func UIServer(addr string, m *Manager) {
+func makeId(v interface{}) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fixCSR(w)
+		writeJSON(w, 200, v)
+	}
+}
+
+func UIServer(sshAddr string, addr string, m *Manager) error {
 	// See https://github.com/codegangsta/gin for get to known PORT environment.
 	if p := os.Getenv("PORT"); p != "" {
 		addr = ":" + p
@@ -48,8 +60,10 @@ func UIServer(addr string, m *Manager) {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/ws", connectByWS(m))
+	r.HandleFunc("/ssh_info", makeId(sshAddr))
 
-	http.ListenAndServe(addr, ReactRouter{
+	log.Printf("Listening http on %s\n", addr)
+	return http.ListenAndServe(addr, ReactRouter{
 		fs:    http.FileServer(http.Dir("./ui/build/")),
 		other: r,
 	})

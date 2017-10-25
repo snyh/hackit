@@ -1,54 +1,83 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 )
 
-const (
-	SSHAddr = "0.0.0.0:2200"
-	UIAddr  = ":2207"
-)
+type Config struct {
+	SSH  string
+	UI   string
+	CERT string
+}
 
-func main() {
+func parse() Config {
+	var sshAddr, uiAddr, cert string
+	flag.StringVar(&sshAddr, "ssh_listen", ":2200", "the ssh channel listen address")
+	flag.StringVar(&uiAddr, "http_listen", ":80", "the http ui server listen address")
+	flag.StringVar(&cert, "cert", "./cert", "the path of certificate file, generate by ssh-keygen -t rsa")
+	flag.Parse()
+	return Config{
+		sshAddr, uiAddr, cert,
+	}
+}
+
+func buildSSHConfig(cert string) (*ssh.ServerConfig, error) {
 	config := &ssh.ServerConfig{
 		NoClientAuth: true,
 	}
-
 	// You can generate a keypair with 'ssh-keygen -t rsa'
-	privateBytes, err := ioutil.ReadFile("out")
+	privateBytes, err := ioutil.ReadFile(cert)
 	if err != nil {
-		log.Fatal("Failed to load private key (./out)")
+		return nil, err
 	}
 
 	private, err := ssh.ParsePrivateKey(privateBytes)
 	if err != nil {
-		log.Fatal("Failed to parse private key")
+		return nil, err
 	}
-
 	config.AddHostKey(private)
+	return config, nil
+}
 
-	// Once a ServerConfig has been configured, connections can be accepted.
-	listener, err := net.Listen("tcp", SSHAddr)
+func main() {
+	c := parse()
+
+	sshConfig, err := buildSSHConfig(c.CERT)
 	if err != nil {
-		log.Fatalf("Failed to listen on 2200 (%s)", err)
+		log.Fatalf("Can't setup ssh protocol %s", err)
+		return
 	}
 
+	listener, err := net.Listen("tcp", c.SSH)
+	if err != nil {
+		log.Fatalf("Failed to listen %s.", err)
+		return
+	}
+	log.Printf("Listening ssh on %s\n", listener.Addr())
 	m := NewManager()
 
-	go UIServer(UIAddr, m)
+	go func() {
+		var err = UIServer(c.SSH, c.UI, m)
+		if err != nil {
+			log.Fatalf("Can't setup http protocol %s", err)
+			os.Exit(-1)
+		}
+	}()
 
-	// Accept all connections
-	log.Printf("Listening on %s\n", SSHAddr)
 	for {
 		tcpConn, err := listener.Accept()
 		if err != nil {
 			log.Printf("Failed to accept incoming connection (%s)", err)
 			continue
 		}
-		go dispatch(m, tcpConn, config)
+		fmt.Println("LLLLLLLLLL:", tcpConn.LocalAddr())
+		go dispatch(m, tcpConn, sshConfig)
 	}
 }
 

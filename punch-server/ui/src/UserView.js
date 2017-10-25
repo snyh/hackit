@@ -5,6 +5,7 @@ import { Table, Icon, Label, Button, Message, Container, Grid, Header, Divider }
 import { Link } from 'react-router-dom';
 import {CopyToClipboard} from 'react-copy-to-clipboard';
 
+import { PleaseUseClient } from './Widget.js';
 
 class UserView extends Component {
     constructor(props) {
@@ -53,7 +54,7 @@ class UserView extends Component {
                     </div>
                 );
             case "offline":
-                return (<div>无法与本地服务器连接，请使用客户端打开本页面</div>)
+                return <PleaseUseClient />;
             default:
                 return (<div>loading {this.state.localStatus}</div>)
         }

@@ -9,7 +9,9 @@ import XTerm from './react-xterm.js';
 
 import UserView from './UserView.js';
 
-const API_SERVER = `${window.location.hostname}:2207`
+import { PleaseUseClient } from './Widget.js';
+
+const HTTP_SERVER = `${window.location.hostname}:2207`
 
 class MagicLinkWithEnsure extends Component {
     state = {
@@ -62,7 +64,7 @@ class MagicLink extends Component {
         }
 
         const id = this.props.magicKey;
-        const backend = new WebSocket(`ws://${API_SERVER}/ws?uuid=${id}`)
+        const backend = new WebSocket(`ws://${HTTP_SERVER}/ws?uuid=${id}`)
         backend.onclose = this.handleError.bind(this)
         backend.onopen = this.handleOpen.bind(this, backend)
     }
@@ -99,51 +101,12 @@ class MagicLink extends Component {
     }
 }
 
-class ListMagicLink extends Component {
-    constructor(props) {
-        super(props)
-        this.state = {
-            values : []
-        }
-    }
-
-    componentDidMount() {
-        const tick = () => {
-            fetch(`http://${API_SERVER}/list`).then( (resp) => {
-                resp.json().then( data => {
-                    this.setState({values: data});
-                    this.timer = setTimeout(tick, 3000);
-                })
-           })
-        };
-        tick();
-    }
-
-    componentWillUnmount() {
-        clearTimeout(this.timer);
-    }
-
-    render() {
-        const ids = this.state.values.map( id => {
-            return <li key={id}><Link to={`/connect/${id}`}>{id}</Link></li>
-        })
-        return (
-            <div>
-                <Header> HackIt 管理后台 <Link to="/">Home</Link> </Header>
-                <Divider/>
-                <Header> 当前有 {ids.length} 个有效连接 </Header>
-                <Link to="/mysys/7777"> 本地系统状态(localhost:7777) </Link>
-            </div>
-        );
-    }
-}
-
 class App extends Component {
     render() {
         return (
             <Container>
                 <Switch>
-                    <Route exact path="/" component={ListMagicLink}/>
+                    <Route exact path="/" component={PleaseUseClient}/>
                     <Route path="/connect/:id" component={MagicLinkWithEnsure}/>
                     <Route path="/mysys/:port" component={UserView} />
                 </Switch>
