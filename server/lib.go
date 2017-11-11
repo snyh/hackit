@@ -79,12 +79,13 @@ type WriteSwitcher interface {
 	io.Writer
 	Switch(io.Writer)
 }
-type SimpleSwitcher struct {
+
+type SimpleWriteSwitcher struct {
 	inner io.Writer
 }
 
-func NewSimpleSwitcher() WriteSwitcher {
-	return &SimpleSwitcher{ioutil.Discard}
+func NewSimpleWriteSwitcher() WriteSwitcher {
+	return &SimpleWriteSwitcher{ioutil.Discard}
 }
-func (p *SimpleSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
-func (p *SimpleSwitcher) Switch(w io.Writer)            { p.inner = w }
+func (p *SimpleWriteSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
+func (p *SimpleWriteSwitcher) Switch(w io.Writer)            { p.inner = w }

@@ -4,8 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -13,31 +11,41 @@ import (
 )
 
 func OpenBrowser(uiServer string, port string) {
+	if DEV {
+		return
+	}
 	go func() {
 		time.Sleep(time.Millisecond * 500)
 		openUrl(fmt.Sprintf("%s/mysys/%s", uiServer, port))
 	}()
 }
 
-func findAPIAddress(remote string) string {
-	return "hackit.snyh.org:2200"
-}
+const DEV = true
 
 func main() {
-	var remoteURL, localAddr string
-	flag.StringVar(&remoteURL, "remote", "http://hackit.snyh.org", "the server address")
+	var remoteHTTPURL, localAddr, apiAddr string
+
+	if DEV {
+		flag.StringVar(&remoteHTTPURL, "remote", "http://localhost:8080", "the hackit's http address.")
+		flag.StringVar(&apiAddr, "api", "localhost:2200", "the hackit's api address")
+	} else {
+		flag.StringVar(&remoteHTTPURL, "remote", "http://hackit.snyh.org", "the server address")
+		flag.StringVar(&apiAddr, "api", "hackit.snyh.org:2200", "the hackit's api address")
+	}
+
 	flag.StringVar(&localAddr, "local", "auto", "the local listen address")
+
 	flag.Parse()
 
 	if p := os.Getenv("PORT"); p != "" {
 		localAddr = ":" + p
 	}
 
-	m, err := NewManager(findAPIAddress(remoteURL), localAddr)
+	m, err := NewManager(apiAddr, localAddr)
 	if err != nil {
 		fmt.Println("ERR:", err)
 	}
-	OpenBrowser(remoteURL, m.port)
+	OpenBrowser(remoteHTTPURL, m.port)
 
 	if err := m.Run(); err != nil {
 		fmt.Println("ERR:", err)
@@ -57,7 +65,8 @@ const (
 type Manager struct {
 	status     Status
 	hackitAddr string
-	conns      map[string]*HackItConn
+
+	conns map[string]*HackItConn
 
 	listener net.Listener
 	port     string
@@ -93,49 +102,16 @@ func (m *Manager) openHackIt(apiServer string) (*HackItConn, error) {
 func (m *Manager) Run() error {
 	r := mux.NewRouter()
 	r.HandleFunc("/status", m.handleStatus)
-	r.HandleFunc("/listTTYs", m.handleListTTYs)
-	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.handleConnect)
-	r.HandleFunc("/requestTTY", m.handleRequestConnect)
+	r.HandleFunc("/listTTYs", m.handleListConns)
+	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.handleTTY)
+	r.HandleFunc("/chat/{uuid:[a-z0-9-]+}", m.handleChat)
+	r.HandleFunc("/requestTTY", m.handleNewConnect)
+
 	http.Handle("/", r)
 	return http.Serve(m.listener, nil)
 }
 
-// TODO: remove this from global scope
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
-}
-
-func (m *Manager) handleConnect(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	conn, ok := m.conns[vars["uuid"]]
-	if !ok {
-		writeJSON(w, 404, "invalid magic key")
-		return
-	}
-	rp, wp, err := os.Pipe()
-	if err != nil {
-		writeJSON(w, 501, err)
-		return
-	}
-	conn.AttachPrinter(wp)
-
-	// setup websocket
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		writeJSON(w, 501, err)
-		return
-	}
-
-	done := make(chan struct{})
-	go func() {
-		io.Copy(wsWrap{ws}, rp)
-		done <- struct{}{}
-		ws.Close()
-	}()
-	go wsPing(ws, done)
-}
-
-func (m *Manager) handleRequestConnect(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) handleNewConnect(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
 	conn, err := NewHackItConn(m.hackitAddr)
 	if err != nil {
@@ -152,11 +128,32 @@ func (m *Manager) handleRequestConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, conn.UUID)
 }
 
+func (m *Manager) handleTTY(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	conn, ok := m.conns[vars["uuid"]]
+	if !ok {
+		writeJSON(w, 404, "invalid magic key")
+		return
+	}
+	conn.ServeTTY(w, r)
+}
+
+func (m *Manager) handleChat(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	conn, ok := m.conns[vars["uuid"]]
+	if !ok {
+		writeJSON(w, 404, "invalid magic key")
+		return
+	}
+	conn.ServeChat(w, r)
+}
+
 func (m *Manager) handleStatus(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
 	writeJSON(w, 200, "online")
 }
-func (m *Manager) handleListTTYs(w http.ResponseWriter, r *http.Request) {
+
+func (m *Manager) handleListConns(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
 	var ret = make([]*HackItConn, 0)
 	for _, v := range m.conns {
