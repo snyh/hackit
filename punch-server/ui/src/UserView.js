@@ -7,7 +7,7 @@ import {CopyToClipboard} from 'react-copy-to-clipboard';
 
 import { PleaseUseClient } from './Widget.js';
 
-import Chat from './chat.js';
+import Chat from './Chat.js';
 
 
 class UserView extends Component {
@@ -254,31 +254,21 @@ class DetailView extends Component {
     componentWillUnmount() {
         if (this.state.ttyWS) {
             this.state.ttyWS.close()
-            this.setBackend(undefined)
+            this.setTTYWS(undefined)
         }
         if (this.state.chatWS) {
             this.state.chatWS.close()
-            this.setBackend(undefined)
+            this.setChatWS(undefined)
         }
     }
     render() {
         const uuid = this.props.uuid;
         return (
             <Container>
-                <Header>{uuid} 以下为远程实时操作视角，你只可以查看。或在直接切断连接。</Header>
-                <Divider/>
-                <Grid divided>
-                    <Grid.Row>
-                        <Grid.Column height="600px">
-                            { this.state.ttyWS ? <XTerm backend={this.state.ttyWS} /> : <div>Connecting</div> }
-                        </Grid.Column>
-                    </Grid.Row>
-                    <Grid.Row>
-                        <Grid.Column>
-                            { this.state.chatWS ? <Chat ws={this.state.chatWS} /> : <div>Connecting</div> }
-                        </Grid.Column>
-                    </Grid.Row>
-                </Grid>
+            <Header>{uuid} 以下为远程实时操作视角，你只可以查看。或在直接切断连接。</Header>
+            <Divider/>
+            { this.state.ttyWS ? <XTerm backend={this.state.ttyWS} /> : <div>Connecting</div> }
+            { this.state.chatWS ? <Chat ws={this.state.chatWS} /> : <div>Connecting</div> }
             </Container>
         );
     }

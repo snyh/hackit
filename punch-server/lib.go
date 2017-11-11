@@ -2,12 +2,15 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/websocket"
+	"golang.org/x/crypto/ssh"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
+	"sync"
 	"time"
 )
 
@@ -89,3 +92,89 @@ func NewSimpleWriteSwitcher() WriteSwitcher {
 }
 func (p *SimpleWriteSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
 func (p *SimpleWriteSwitcher) Switch(w io.Writer)            { p.inner = w }
+
+type ChatMessage []byte
+
+type ChatBuffer struct {
+	sync.Mutex
+
+	ws    *websocket.Conn
+	index int
+
+	ssh ssh.Channel
+
+	buf []ChatMessage
+
+	pending chan ChatMessage
+}
+
+func NewChatBuffer(ch ssh.Channel) *ChatBuffer {
+	buf := &ChatBuffer{
+		ssh: ch,
+	}
+	buf.WriteFromSSH([]byte("hello little fairy"))
+	go buf.work()
+	return buf
+}
+
+func (cb *ChatBuffer) SwitchWS(ws *websocket.Conn) {
+	cb.Lock()
+	cb.ws = ws
+	cb.index = 0
+	fmt.Println("SWTCHWS", cb.index)
+	cb.Unlock()
+}
+
+func (cb *ChatBuffer) Pendings() <-chan ChatMessage {
+	cb.Lock()
+	defer cb.Unlock()
+
+	n := len(cb.buf)
+	np := n - cb.index
+
+	fmt.Println("P1", n, np)
+	if np <= 0 || cb.ws == nil {
+		ch := make(chan ChatMessage)
+		close(ch)
+		return ch
+	}
+
+	ch := make(chan ChatMessage, np)
+
+	fmt.Println("P3", np)
+
+	for _, msg := range cb.buf[cb.index:] {
+		cb.index++
+		ch <- msg
+	}
+	close(ch)
+	return ch
+}
+
+func (cb *ChatBuffer) work() {
+	// TODO handling close
+	for {
+		time.Sleep(time.Second)
+		for msg := range cb.Pendings() {
+			cb.ws.WriteMessage(websocket.TextMessage, msg)
+		}
+	}
+}
+
+func (cb *ChatBuffer) record(msg ChatMessage) []byte {
+	cb.Lock()
+	cb.buf = append(cb.buf, msg)
+	fmt.Println("RECORD:", string(msg))
+	cb.Unlock()
+	return msg
+}
+
+func (cb *ChatBuffer) WriteFromWS(msg ChatMessage) {
+	fmt.Println("WriteFromWS..", string(msg))
+	cb.ssh.SendRequest("chat", false, cb.record(msg))
+}
+
+func (cb *ChatBuffer) WriteFromSSH(msg ChatMessage) {
+	fmt.Println("WriteFromSSH..", string(msg))
+	cb.record(msg)
+}

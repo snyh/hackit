@@ -102,18 +102,9 @@ func dispatch(m *Manager, tcpConn net.Conn, config *ssh.ServerConfig) error {
 			if err != nil {
 				return err
 			}
-			m.Put(id, ch, reqs)
-		case "hacking":
-			log.Printf("New SSH connection \033[31mHacking\033[0m %s (%s)", sshConn.RemoteAddr(), sshConn.ClientVersion())
-			req.Reply(true, nil)
-			uuid := string(req.Payload)
 
-			// We only support one channel per ssh connection.
-			c, err := NewSSHClientChannel(<-channels)
-			if err != nil {
-				return err
-			}
-			go m.Hacking(c, uuid)
+			hc := NewHackerConn(ch, reqs)
+			m.PutConnection(id, hc)
 		default:
 			return tcpConn.Close()
 		}

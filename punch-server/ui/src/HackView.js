@@ -1,18 +1,14 @@
 import React, { Component } from 'react';
-import './App.css';
 
-import { Icon, Message, Confirm, Container, Header, Divider } from 'semantic-ui-react';
-
-import { Route, Link, Switch } from 'react-router-dom';
+import { Icon, Message, Confirm } from 'semantic-ui-react';
 
 import XTerm from './react-xterm.js';
 
-import UserView from './UserView.js';
+import Chat from './Chat.js';
 
-import { PleaseUseClient } from './Widget.js';
+import { Link } from 'react-router-dom';
 
-//const HTTP_SERVER = `${window.location.hostname}:2207`
-const HTTP_SERVER = `${window.location.hostname}:8080`
+import CONFIG from './config.js';
 
 class MagicLinkWithEnsure extends Component {
     state = {
@@ -65,20 +61,31 @@ class MagicLink extends Component {
         }
 
         const id = this.props.magicKey;
-        const backend = new WebSocket(`ws://${HTTP_SERVER}/ws?uuid=${id}`)
-        backend.onclose = this.handleError.bind(this)
-        backend.onopen = this.handleOpen.bind(this, backend)
+        const ttyWS = new WebSocket(`ws://${CONFIG.HTTP_SERVER}/connectTTY/${id}`)
+        ttyWS.onclose = this.handleTTYError.bind(this)
+        ttyWS.onopen = this.handleOpenTTY.bind(this, ttyWS)
+
+        const chatWS = new WebSocket(`ws://${CONFIG.HTTP_SERVER}/connectChat/${id}`)
+        chatWS.onclose = this.handleChatError.bind(this)
+        chatWS.onopen = this.handleOpenChat.bind(this, chatWS)
     }
 
-    handleOpen(ws) {
-        console.log("HHH>>>", ws)
+    handleOpenTTY(ws) {
         this.setState({
             status: "ok",
-            backend: ws
+            ttyWS: ws
+        })
+    }
+    handleOpenChat(ws) {
+        this.setState({
+            chatWS: ws
         })
     }
 
-    handleError() {
+    handleChatError() {
+        console.log("Chat Open ERROR")
+    }
+    handleTTYError() {
         this.setState({
             status: "error"
         })
@@ -95,25 +102,22 @@ class MagicLink extends Component {
                 return (
                     <div>
                         Hello... try connecting to {id}  <Link to="/">Home</Link>
-                        <XTerm backend={this.state.backend}></XTerm>
+                        { this.state.ttyWS ? <XTerm backend={this.state.ttyWS} /> : <div>Connecting</div> }
+                        { this.state.chatWS ? <Chat ws={this.state.chatWS} /> : <div>Connecting</div> }
                     </div>
                 )
         }
     }
 }
 
-class App extends Component {
+
+class MagicLinkDirectly extends Component {
     render() {
-        return (
-            <Container>
-                <Switch>
-                    <Route exact path="/" component={PleaseUseClient}/>
-                    <Route path="/connect/:id" component={MagicLinkWithEnsure}/>
-                    <Route path="/mysys/:port" component={UserView} />
-                </Switch>
-            </Container>
-        );
+        const id = this.props.match.params.id
+        return <MagicLink magicKey={id}/>
     }
 }
 
-export default App;
+
+export default MagicLinkDirectly
+//export default MagicLinkWithEnsure
