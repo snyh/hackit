@@ -7,6 +7,9 @@ import {CopyToClipboard} from 'react-copy-to-clipboard';
 
 import { PleaseUseClient } from './Widget.js';
 
+import Chat from './chat.js';
+
+
 class UserView extends Component {
     constructor(props) {
         super(props)
@@ -49,7 +52,7 @@ class UserView extends Component {
             case "online":
                 return (
                     <div>
-                        <Header>已连接到本地服务器 {this.localServer}</Header>
+                        <Header>已通过本机代理({this.localServer}) 连接到远程服务器({window.location.hostname}) </Header>
                         <ListConnection localServer={this.localServer}/>
                     </div>
                 );
@@ -131,6 +134,8 @@ class ListConnection extends Component {
 
     render() {
         const rows = this.state.connections.map ( (v) =>  {
+//            const msg = `有个小问题需要你协助，请访问 ${window.location.origin}/connect/${v.UUID} 来远程操作我的系统吧。`;
+            const msg = `${window.location.origin}/connect/${v.UUID}`;
             return (
                 <Table.Row key={v.UUID}>
                     <Table.Cell>
@@ -140,7 +145,7 @@ class ListConnection extends Component {
                     <Table.Cell>
                         {v.UUID}
                         <Label.Group size="mini">
-                            <CopyToClipboard text={`有个小问题需要你协助，请访问 ${window.location.origin}/connect/${v.UUID} 来远程操作我的系统吧。`}
+                            <CopyToClipboard text={msg}
                                              onCopy={() => {this.setState({copied: true});alert("Magic Key 拷贝成功")}}>
                             <ActionButton action="copy" status={v.Status}
                                           content="Copy MagicKey" icon='copy' />
@@ -223,20 +228,36 @@ class DetailView extends Component {
     constructor(props) {
         super(props)
         this.state = {
-            backend: undefined
+            ttyWS: undefined,
+            chatWS: undefined
         }
-        const backend = new WebSocket(`ws://${props.localServer}/tty/${props.uuid}`)
-        backend.onopen = this.setBackend.bind(this, backend)
-        backend.onclose = this.setBackend.bind(this, undefined)
+        const tty = new WebSocket(`ws://${props.localServer}/tty/${props.uuid}`)
+        tty.onopen = this.setTTYWS.bind(this, tty)
+        tty.onclose = this.setTTYWS.bind(this, undefined)
+
+        const chat = new WebSocket(`ws://${props.localServer}/chat/${props.uuid}`)
+        chat.onopen = this.setChatWS.bind(this, chat)
+        chat.onclose = this.setChatWS.bind(this, undefined)
+
     }
-    setBackend(b) {
+    setTTYWS(b) {
         this.setState({
-            backend: b
+            ttyWS: b
         })
     }
+    setChatWS(b) {
+        this.setState({
+            chatWS: b
+        })
+    }
+
     componentWillUnmount() {
-        if (this.state.backend) {
-            this.state.backend.close()
+        if (this.state.ttyWS) {
+            this.state.ttyWS.close()
+            this.setBackend(undefined)
+        }
+        if (this.state.chatWS) {
+            this.state.chatWS.close()
             this.setBackend(undefined)
         }
     }
@@ -249,15 +270,12 @@ class DetailView extends Component {
                 <Grid divided>
                     <Grid.Row>
                         <Grid.Column height="600px">
-                            { this.state.backend ? <XTerm backend={this.state.backend} /> : <div>Connecting</div> }
+                            { this.state.ttyWS ? <XTerm backend={this.state.ttyWS} /> : <div>Connecting</div> }
                         </Grid.Column>
                     </Grid.Row>
                     <Grid.Row>
                         <Grid.Column>
-                            <Message>
-                                <p><span>Hacker:</span> 123hhhhh chat message........</p>
-                                <p><span>You:</span> hhhhh chat message........</p>
-                            </Message>
+                            { this.state.chatWS ? <Chat ws={this.state.chatWS} /> : <div>Connecting</div> }
                         </Grid.Column>
                     </Grid.Row>
                 </Grid>

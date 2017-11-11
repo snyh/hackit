@@ -11,7 +11,8 @@ import UserView from './UserView.js';
 
 import { PleaseUseClient } from './Widget.js';
 
-const HTTP_SERVER = `${window.location.hostname}:2207`
+//const HTTP_SERVER = `${window.location.hostname}:2207`
+const HTTP_SERVER = `${window.location.hostname}:8080`
 
 class MagicLinkWithEnsure extends Component {
     state = {

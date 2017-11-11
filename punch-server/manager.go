@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/satori/go.uuid"
 	"golang.org/x/crypto/ssh"
 	"io"
@@ -95,9 +96,29 @@ func (m *Manager) Hacking(channel ClientChannel, uuid string) {
 	}
 	rChannel.SendRequest("hacking", false, nil)
 
+	makeChatRobot(rChannel)
+
 	forwardRequests(rChannel, rReqs, channel, channel.RequestChan())
 
 	m.forwardChannel(rChannel, channel)
+}
+
+func makeChatRobot(server ssh.Channel) error {
+	go func() {
+		for {
+			<-time.After(time.Second * 3)
+
+			msg := fmt.Sprintf("Server Time is : %s", time.Now())
+			str := fmt.Sprintf(`{"author": "them",
+"type": "text",
+"data": {
+   "text": %q
+}
+}`, msg)
+			server.SendRequest("chat", false, []byte(str))
+		}
+	}()
+	return nil
 }
 
 func (m *Manager) forwardChannel(c1 ssh.Channel, c2 ClientChannel) {
@@ -121,7 +142,7 @@ func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ClientChannel, s
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-			//			log.Println("F　cR ---> sC", string(req.Payload))
+			log.Println("F　cR ---> sC", string(req.Payload))
 			sC.SendRequest(req.Type, req.WantReply, req.Payload)
 		}
 	}()
@@ -131,7 +152,7 @@ func forwardRequests(cC ssh.Channel, cR <-chan *ssh.Request, sC ClientChannel, s
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-			//			log.Println("F sR ---> cC", string(req.Payload))
+			log.Println("F sR ---> cC", string(req.Payload))
 			cC.SendRequest(req.Type, req.WantReply, req.Payload)
 		}
 	}()

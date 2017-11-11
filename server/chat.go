@@ -5,48 +5,97 @@ import (
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 	"net/http"
+	"sync"
 	"time"
 )
 
-func makeChatRobot(server ssh.Channel) error {
-	go func() {
-		for {
-			<-time.After(time.Second)
-			server.SendRequest("chat", false, []byte(fmt.Sprintf("Server Time is : %s", time.Now())))
-		}
-	}()
-	return nil
-}
-
 type ChatMessage []byte
 
-type ChatQueue struct {
-	In  chan<- ChatMessage
-	Out <-chan ChatMessage
+type ChatBuffer struct {
+	sync.Mutex
+
+	ws    *websocket.Conn
+	index int
+
+	ssh ssh.Channel
+
+	buf []ChatMessage
+
+	pending chan ChatMessage
 }
 
-func (c *HackItConn) onReceiveChat(bs ChatMessage) {
-	c.chatQueue.In <- bs
+func NewChatBuffer(ch ssh.Channel) *ChatBuffer {
+	buf := &ChatBuffer{
+		ssh: ch,
+	}
+	buf.WriteFromSSH([]byte("hello little fairy"))
+	go buf.work()
+	return buf
 }
 
-func (c *HackItConn) chatForawrd() {
-	in := make(chan ChatMessage, 1)
-	out := make(chan ChatMessage, 1)
-	c.chatQueue = ChatQueue{in, out}
+func (cb *ChatBuffer) SwitchWS(ws *websocket.Conn) {
+	cb.Lock()
+	cb.ws = ws
+	cb.index = 0
+	fmt.Println("SWTCHWS", cb.index)
+	cb.Unlock()
+}
 
-	// handle in message
-	go func() {
-		for msg := range in {
-			fmt.Printf("\033[31m %s \033[0m\n", msg)
+func (cb *ChatBuffer) Pendings() <-chan ChatMessage {
+	cb.Lock()
+	defer cb.Unlock()
+
+	n := len(cb.buf)
+	np := n - cb.index
+
+	fmt.Println("P1", n, np)
+	if np <= 0 || cb.ws == nil {
+		ch := make(chan ChatMessage)
+		close(ch)
+		return ch
+	}
+
+	ch := make(chan ChatMessage, np)
+
+	fmt.Println("P3", np)
+
+	for _, msg := range cb.buf[cb.index:] {
+		cb.index++
+		ch <- msg
+	}
+	close(ch)
+	return ch
+}
+
+func (cb *ChatBuffer) work() {
+	// TODO handling close
+	for {
+		time.Sleep(time.Second)
+		for msg := range cb.Pendings() {
+			cb.ws.WriteMessage(websocket.TextMessage, msg)
 		}
-	}()
-
-	// handle out message
-	go func() {
-	}()
+	}
 }
 
-// ServeChat 将本地websockt的chat message一一映射到c.ssh中去
+func (cb *ChatBuffer) record(msg ChatMessage) []byte {
+	cb.Lock()
+	cb.buf = append(cb.buf, msg)
+	fmt.Println("RECORD:", string(msg))
+	cb.Unlock()
+	return msg
+}
+
+func (cb *ChatBuffer) WriteFromWS(msg ChatMessage) {
+	fmt.Println("WriteFromWS..", string(msg))
+	cb.ssh.SendRequest("chat", false, cb.record(msg))
+}
+
+func (cb *ChatBuffer) WriteFromSSH(msg ChatMessage) {
+	fmt.Println("WriteFromSSH..", string(msg))
+	cb.record(msg)
+}
+
+// ServeChat 收发WebSocket上的chat message 到c.chatQueue上
 func (c *HackItConn) ServeChat(w http.ResponseWriter, r *http.Request) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool { return true },
@@ -60,26 +109,24 @@ func (c *HackItConn) ServeChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	done := make(chan struct{})
+
+	c.chatBuffer.SwitchWS(ws)
+
 	go func() {
-		// io.Copy(wsWrap{ws}, rp)
-		done <- struct{}{}
+		for {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
+				done <- struct{}{}
+				return
+			}
+			c.chatBuffer.WriteFromWS(msg)
+
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
+
+	go func() {
+		wsPing(ws, done)
 		ws.Close()
 	}()
-	go wsPing(ws, done)
-}
-
-type wsChatWrap struct {
-	core *websocket.Conn
-}
-
-func (w wsChatWrap) Write(p []byte) (int, error) {
-	return len(p), w.core.WriteMessage(websocket.TextMessage, p)
-}
-func (w wsChatWrap) Read(p []byte) (int, error) {
-	_, bs, err := w.core.ReadMessage()
-	copy(p, bs)
-	return len(bs), err
-}
-func (w wsChatWrap) Close() error {
-	return w.core.Close()
 }

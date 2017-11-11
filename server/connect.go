@@ -21,7 +21,7 @@ type HackItConn struct {
 	Status   HackItConnStatus
 	CreateAt time.Time
 
-	chatQueue ChatQueue
+	chatBuffer *ChatBuffer
 
 	channel       ssh.Channel
 	inSSHRequests <-chan *ssh.Request
@@ -57,6 +57,8 @@ func NewHackItConn(serveAddr string) (*HackItConn, error) {
 
 		channel:       channel,
 		inSSHRequests: requests,
+
+		chatBuffer: NewChatBuffer(channel),
 
 		observer: NewSimpleWriteSwitcher(),
 	}, nil
@@ -97,7 +99,7 @@ func (c *HackItConn) handleInSSHRequest() {
 	for req := range c.inSSHRequests {
 		switch req.Type {
 		case "chat":
-			c.onReceiveChat(req.Payload)
+			c.chatBuffer.WriteFromSSH(req.Payload)
 			req.Reply(true, nil)
 		case "shell", "ping":
 			req.Reply(true, nil)
