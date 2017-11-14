@@ -31,10 +31,12 @@ func (c *HackerConn) Start(ws *websocket.Conn) {
 
 	c.SSHChannel.SendRequest("hacking", false, nil)
 
-	makeChatRobot(c.SSHChannel)
-
 	c.forwardRequests()
 	c.forwardChannel()
+}
+
+func (c *HackerConn) SetupChat(ws *websocket.Conn) {
+	c.chatBuffer.SwitchWS(ws)
 }
 
 func (c *HackerConn) Close() error {
@@ -51,11 +53,15 @@ func (c *HackerConn) Close() error {
 func (c *HackerConn) forwardRequests() {
 	go func() {
 		for req := range c.InSSHRequests {
+			switch req.Type {
+			case "chat":
+				c.chatBuffer.WriteFromSSH(req.Payload)
+			default:
+				log.Println("F　cR ---> sC", string(req.Payload))
+			}
 			if req.WantReply {
 				req.Reply(true, nil)
 			}
-			log.Println("F　cR ---> sC", string(req.Payload))
-			//c.ClientChannel.SendRequest(req.Type, req.WantReply, req.Payload)
 		}
 	}()
 }

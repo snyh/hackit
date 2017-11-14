@@ -93,7 +93,25 @@ func NewSimpleWriteSwitcher() WriteSwitcher {
 func (p *SimpleWriteSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
 func (p *SimpleWriteSwitcher) Switch(w io.Writer)            { p.inner = w }
 
-type ChatMessage []byte
+type ChatMessage struct {
+	Author string      `json:"author"`
+	Type   string      `json:"type"`
+	Data   interface{} `json:"data"`
+}
+
+func (msg ChatMessage) Marshal() []byte {
+	bs, _ := json.Marshal(msg)
+	return bs
+}
+
+func (msg ChatMessage) Invert() ChatMessage {
+	if msg.Author == "me" {
+		msg.Author = "theme"
+	} else {
+		msg.Author = "me"
+	}
+	return msg
+}
 
 type ChatBuffer struct {
 	sync.Mutex
@@ -112,8 +130,7 @@ func NewChatBuffer(ch ssh.Channel) *ChatBuffer {
 	buf := &ChatBuffer{
 		ssh: ch,
 	}
-	buf.WriteFromSSH([]byte("hello little fairy"))
-	go buf.work()
+	buf.work()
 	return buf
 }
 
@@ -132,7 +149,6 @@ func (cb *ChatBuffer) Pendings() <-chan ChatMessage {
 	n := len(cb.buf)
 	np := n - cb.index
 
-	fmt.Println("P1", n, np)
 	if np <= 0 || cb.ws == nil {
 		ch := make(chan ChatMessage)
 		close(ch)
@@ -140,8 +156,6 @@ func (cb *ChatBuffer) Pendings() <-chan ChatMessage {
 	}
 
 	ch := make(chan ChatMessage, np)
-
-	fmt.Println("P3", np)
 
 	for _, msg := range cb.buf[cb.index:] {
 		cb.index++
@@ -153,28 +167,54 @@ func (cb *ChatBuffer) Pendings() <-chan ChatMessage {
 
 func (cb *ChatBuffer) work() {
 	// TODO handling close
-	for {
-		time.Sleep(time.Second)
-		for msg := range cb.Pendings() {
-			cb.ws.WriteMessage(websocket.TextMessage, msg)
+	done := false
+	go func() {
+		for {
+			time.Sleep(time.Millisecond * 150)
+			for msg := range cb.Pendings() {
+				cb.ws.WriteMessage(websocket.TextMessage, msg.Marshal())
+			}
+			if done {
+				return
+			}
 		}
-	}
+	}()
+	go func() {
+		for {
+			if cb.ws != nil {
+				_, bs, err := cb.ws.ReadMessage()
+				if err != nil {
+					done = true
+					return
+				}
+				cb.WriteFromWS(bs)
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
+
+	// go func() {
+	// 	wsPing(cb.ws, done)
+	// 	cb.ws.Close()
+	// }()
 }
 
-func (cb *ChatBuffer) record(msg ChatMessage) []byte {
+func (cb *ChatBuffer) record(bs []byte) ChatMessage {
 	cb.Lock()
+	var msg ChatMessage
+	json.Unmarshal(bs, &msg)
 	cb.buf = append(cb.buf, msg)
-	fmt.Println("RECORD:", string(msg))
 	cb.Unlock()
 	return msg
 }
 
-func (cb *ChatBuffer) WriteFromWS(msg ChatMessage) {
-	fmt.Println("WriteFromWS..", string(msg))
-	cb.ssh.SendRequest("chat", false, cb.record(msg))
+func (cb *ChatBuffer) WriteFromWS(bs []byte) {
+	fmt.Println("WriteFromWS..", string(bs))
+	msg := cb.record(bs)
+	cb.ssh.SendRequest("chat", false, msg.Invert().Marshal())
 }
 
-func (cb *ChatBuffer) WriteFromSSH(msg ChatMessage) {
+func (cb *ChatBuffer) WriteFromSSH(msg []byte) {
 	fmt.Println("WriteFromSSH..", string(msg))
 	cb.record(msg)
 }

@@ -24,11 +24,6 @@ type ReactRouter struct {
 func (rr ReactRouter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := r.URL.Path
 
-	// if strings.HasPrefix(r.URL.Path, "/ws") {
-	// 	rr.other.ServeHTTP(w, r)
-	// 	return
-	// }
-
 	var m mux.RouteMatch
 	if rr.other.Match(r, &m) {
 		rr.other.ServeHTTP(w, r)
@@ -107,6 +102,25 @@ func (m *Manager) HandleConnectTTY(w http.ResponseWriter, r *http.Request) {
 
 func (m *Manager) HandleConnectChat(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
-	writeJSON(w, 403, "Invalid magic key")
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+
+	conn := m.FindConnection(uuid)
+	if conn == nil {
+		writeJSON(w, 403, "Invalid magic key")
+		return
+	}
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	// setup websocket
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		writeJSON(w, 501, err)
+		return
+	}
+	conn.SetupChat(ws)
 	return
 }

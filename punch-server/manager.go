@@ -1,9 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"github.com/satori/go.uuid"
-	"golang.org/x/crypto/ssh"
 	"log"
 	"sync"
 	"time"
@@ -83,22 +81,4 @@ func (m *Manager) list() []string {
 		ret = append(ret, id)
 	}
 	return ret
-}
-
-func makeChatRobot(server ssh.Channel) error {
-	go func() {
-		for {
-			<-time.After(time.Second * 3)
-
-			msg := fmt.Sprintf("Server Time is : %s", time.Now())
-			str := fmt.Sprintf(`{"author": "them",
-"type": "text",
-"data": {
-   "text": %q
-}
-}`, msg)
-			server.SendRequest("chat", false, []byte(str))
-		}
-	}()
-	return nil
 }
