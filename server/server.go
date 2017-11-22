@@ -96,24 +96,21 @@ func NewManager(hackitAddr string, localAddr string) (*Manager, error) {
 	return m, nil
 }
 
-func (m *Manager) openHackIt(apiServer string) (*HackItConn, error) {
-	return NewHackItConn(apiServer)
-}
-
 func (m *Manager) Run() error {
 	r := mux.NewRouter()
 	r.HandleFunc("/status", m.handleStatus)
 	r.HandleFunc("/listTTYs", m.handleListConns)
 	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.ServeTTY)
 	r.HandleFunc("/chat/{uuid:[a-z0-9-]+}", m.ServeChat)
-	r.HandleFunc("/requestTTY", m.handleNewConnect)
+	r.HandleFunc("/requestTTY", m.NewConnect)
 
 	http.Handle("/", r)
 	return http.Serve(m.listener, nil)
 }
 
-func (m *Manager) handleNewConnect(w http.ResponseWriter, r *http.Request) {
+func (m *Manager) NewConnect(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
+
 	conn, err := NewHackItConn(m.hackitAddr)
 	if err != nil {
 		writeJSON(w, 502, err.Error())
