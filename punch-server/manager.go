@@ -29,12 +29,6 @@ func (m *Manager) Next() string {
 	return id
 }
 
-func (m *Manager) FindConnection(uuid string) *HackerConn {
-	m.RLock()
-	defer m.RUnlock()
-	return m.conns[uuid]
-}
-
 func (m *Manager) PutConnection(uuid string, conn *HackerConn) string {
 	m.Lock()
 	m.conns[uuid] = conn

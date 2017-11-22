@@ -3,16 +3,22 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/glycerine/rbuf"
 	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/ssh"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os/exec"
 	"sync"
 	"time"
 )
+
+func WSU() *websocket.Upgrader {
+	return &websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+}
 
 func wsPing(ws *websocket.Conn, done <-chan struct{}) {
 	const (
@@ -69,6 +75,72 @@ func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 	w.Write(bs)
 }
 
+type ChannelHistory struct {
+	sync.Mutex
+
+	ws *websocket.Conn
+
+	ssh  ssh.Channel
+	ring *rbuf.FixedSizeRingBuf
+
+	done bool
+}
+
+func (cb *ChannelHistory) Switch(ws *websocket.Conn) {
+	cb.Lock()
+	cb.ws = ws
+	cb.Unlock()
+}
+
+func NewChannelHistory(ssh ssh.Channel) *ChannelHistory {
+	cb := &ChannelHistory{
+		ssh:  ssh,
+		ring: rbuf.NewFixedSizeRingBuf(1024 * 1024 * 20), // Max tty history size 20MB
+	}
+	go cb.Work()
+	return cb
+}
+func (cb *ChannelHistory) Write(p []byte) (int, error) {
+	n, err := cb.ssh.Write(p)
+	if err != nil {
+		return n, err
+	}
+	return cb.ring.Write(p)
+}
+func (cb *ChannelHistory) Read(p []byte) (int, error) {
+	return cb.ssh.Read(p)
+}
+func (cb *ChannelHistory) Close() error {
+	cb.Lock()
+	cb.done = true
+	if cb.ws != nil {
+		cb.ws.Close()
+	}
+	cb.Unlock()
+	return cb.ssh.Close()
+}
+
+func (cb *ChannelHistory) Work() {
+	for {
+		if cb.done {
+			return
+		}
+		time.Sleep(time.Millisecond * 200)
+		cb.Lock()
+
+		if cb.ws == nil {
+			cb.Unlock()
+			continue
+		}
+		cb.Unlock()
+
+		_, err := io.Copy(wsWrap{cb.ws}, cb.ring)
+		if err != nil && err != io.EOF {
+			fmt.Println("CB WORK FAIL:", err)
+		}
+	}
+}
+
 func openUrl(url string) {
 	bin, err := exec.LookPath("xdg-open")
 	if err != nil {
@@ -77,21 +149,6 @@ func openUrl(url string) {
 		exec.Command(bin, url).Run()
 	}
 }
-
-type WriteSwitcher interface {
-	io.Writer
-	Switch(io.Writer)
-}
-
-type SimpleWriteSwitcher struct {
-	inner io.Writer
-}
-
-func NewSimpleWriteSwitcher() WriteSwitcher {
-	return &SimpleWriteSwitcher{ioutil.Discard}
-}
-func (p *SimpleWriteSwitcher) Write(buf []byte) (int, error) { return p.inner.Write(buf) }
-func (p *SimpleWriteSwitcher) Switch(w io.Writer)            { p.inner = w }
 
 type ChatMessage struct {
 	Author string      `json:"author"`
@@ -192,11 +249,6 @@ func (cb *ChatBuffer) work() {
 			time.Sleep(time.Millisecond * 100)
 		}
 	}()
-
-	// go func() {
-	// 	wsPing(cb.ws, done)
-	// 	cb.ws.Close()
-	// }()
 }
 
 func (cb *ChatBuffer) record(bs []byte) ChatMessage {

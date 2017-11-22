@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+func WSU() *websocket.Upgrader {
+	return &websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+}
+
 func wsPing(ws *websocket.Conn, done <-chan struct{}) {
 	const (
 		// Time allowed to write a message to the peer.

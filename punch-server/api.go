@@ -2,7 +2,6 @@ package main
 
 import (
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -69,21 +68,15 @@ func UIServer(sshAddr string, addr string, m *Manager) error {
 func (m *Manager) HandleConnectTTY(w http.ResponseWriter, r *http.Request) {
 	fixCSR(w)
 
-	vars := mux.Vars(r)
-	uuid := vars["uuid"]
-
-	u := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-	ws, err := u.Upgrade(w, r, nil)
-	if err != nil {
-		writeJSON(w, 501, err.Error())
+	conn := m.findConnection(r)
+	if conn == nil {
+		writeJSON(w, 403, "Invalid magic key")
 		return
 	}
 
-	conn := m.FindConnection(uuid)
-	if conn == nil {
-		writeJSON(w, 403, "Invalid magic key")
+	ws, err := WSU().Upgrade(w, r, nil)
+	if err != nil {
+		writeJSON(w, 501, err.Error())
 		return
 	}
 
@@ -100,23 +93,25 @@ func (m *Manager) HandleConnectTTY(w http.ResponseWriter, r *http.Request) {
 	log.Println("End of request ws")
 }
 
-func (m *Manager) HandleConnectChat(w http.ResponseWriter, r *http.Request) {
-	fixCSR(w)
+func (m *Manager) findConnection(r *http.Request) *HackerConn {
+	m.RLock()
+	defer m.RUnlock()
 	vars := mux.Vars(r)
 	uuid := vars["uuid"]
+	return m.conns[uuid]
+}
 
-	conn := m.FindConnection(uuid)
+func (m *Manager) HandleConnectChat(w http.ResponseWriter, r *http.Request) {
+	fixCSR(w)
+
+	conn := m.findConnection(r)
 	if conn == nil {
 		writeJSON(w, 403, "Invalid magic key")
 		return
 	}
 
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
 	// setup websocket
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := WSU().Upgrade(w, r, nil)
 	if err != nil {
 		writeJSON(w, 501, err)
 		return

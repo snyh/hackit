@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"os"
@@ -126,42 +125,38 @@ func (m *Manager) NewConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, conn.UUID)
 }
 
+func (m *Manager) findConnection(r *http.Request) *HackItConn {
+	vars := mux.Vars(r)
+	uuid := vars["uuid"]
+	return m.conns[uuid]
+}
+
 // ServerTTY 打印HackItConn的内容到本地ws中，以便被控者可以看到操控者执行的具体命令
 func (m *Manager) ServeTTY(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	conn, ok := m.conns[vars["uuid"]]
-	if !ok {
+	conn := m.findConnection(r)
+	if conn == nil {
 		writeJSON(w, 404, "invalid magic key")
 		return
 	}
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
 
-	// setup websocket
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := WSU().Upgrade(w, r, nil)
 	if err != nil {
 		writeJSON(w, 501, err)
 		return
 	}
+
 	conn.channel.Switch(ws)
 }
 
 // ServeChat 收发WebSocket上的chat message 到c.chatQueue上
 func (m *Manager) ServeChat(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	conn, ok := m.conns[vars["uuid"]]
-	if !ok {
+	conn := m.findConnection(r)
+	if conn == nil {
 		writeJSON(w, 404, "invalid magic key")
 		return
 	}
 
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	// setup websocket
-	ws, err := upgrader.Upgrade(w, r, nil)
+	ws, err := WSU().Upgrade(w, r, nil)
 	if err != nil {
 		writeJSON(w, 501, err)
 		return
