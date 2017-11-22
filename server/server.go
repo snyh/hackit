@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 	"net"
 	"net/http"
 	"os"
@@ -103,8 +104,8 @@ func (m *Manager) Run() error {
 	r := mux.NewRouter()
 	r.HandleFunc("/status", m.handleStatus)
 	r.HandleFunc("/listTTYs", m.handleListConns)
-	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.handleTTY)
-	r.HandleFunc("/chat/{uuid:[a-z0-9-]+}", m.handleChat)
+	r.HandleFunc("/tty/{uuid:[a-z0-9-]+}", m.ServeTTY)
+	r.HandleFunc("/chat/{uuid:[a-z0-9-]+}", m.ServeChat)
 	r.HandleFunc("/requestTTY", m.handleNewConnect)
 
 	http.Handle("/", r)
@@ -128,24 +129,47 @@ func (m *Manager) handleNewConnect(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, conn.UUID)
 }
 
-func (m *Manager) handleTTY(w http.ResponseWriter, r *http.Request) {
+// ServerTTY 打印HackItConn的内容到本地ws中，以便被控者可以看到操控者执行的具体命令
+func (m *Manager) ServeTTY(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	conn, ok := m.conns[vars["uuid"]]
 	if !ok {
 		writeJSON(w, 404, "invalid magic key")
 		return
 	}
-	conn.ServeTTY(w, r)
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	// setup websocket
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		writeJSON(w, 501, err)
+		return
+	}
+	conn.channel.Switch(ws)
 }
 
-func (m *Manager) handleChat(w http.ResponseWriter, r *http.Request) {
+// ServeChat 收发WebSocket上的chat message 到c.chatQueue上
+func (m *Manager) ServeChat(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	conn, ok := m.conns[vars["uuid"]]
 	if !ok {
 		writeJSON(w, 404, "invalid magic key")
 		return
 	}
-	conn.ServeChat(w, r)
+
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool { return true },
+	}
+
+	// setup websocket
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		writeJSON(w, 501, err)
+		return
+	}
+	conn.chatBuffer.SwitchWS(ws)
 }
 
 func (m *Manager) handleStatus(w http.ResponseWriter, r *http.Request) {

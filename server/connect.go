@@ -2,12 +2,10 @@ package main
 
 import (
 	"fmt"
-	"github.com/gorilla/websocket"
 	"github.com/kr/pty"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"sync"
@@ -23,13 +21,12 @@ type HackItConn struct {
 
 	chatBuffer *ChatBuffer
 
-	channel       ssh.Channel
+	channel       *ChannelHistory
 	inSSHRequests <-chan *ssh.Request
 
 	shell *os.File //bash的输入输出, 实际由pty包装
 
-	observer WriteSwitcher
-	once     sync.Once
+	once sync.Once
 }
 
 func NewHackItConn(serveAddr string) (*HackItConn, error) {
@@ -55,44 +52,11 @@ func NewHackItConn(serveAddr string) (*HackItConn, error) {
 		Status:   "ready",
 		CreateAt: time.Now().UTC(),
 
-		channel:       channel,
+		channel:       NewChannelHistory(channel),
 		inSSHRequests: requests,
 
 		chatBuffer: NewChatBuffer(channel),
-
-		observer: NewSimpleWriteSwitcher(),
 	}, nil
-}
-
-func (c *HackItConn) SetShellObserver(p io.Writer) { c.observer.Switch(p) }
-
-// ServerTTY 打印HackItConn的内容到本地ws中，以便被控者可以看到操控者执行的具体命令
-func (c *HackItConn) ServeTTY(w http.ResponseWriter, r *http.Request) {
-	rp, wp, err := os.Pipe()
-	if err != nil {
-		writeJSON(w, 501, err)
-		return
-	}
-	c.SetShellObserver(wp)
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
-
-	// setup websocket
-	ws, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		writeJSON(w, 501, err)
-		return
-	}
-
-	done := make(chan struct{})
-	go func() {
-		io.Copy(wsWrap{ws}, rp)
-		done <- struct{}{}
-		ws.Close()
-	}()
-	go wsPing(ws, done)
 }
 
 func (c *HackItConn) handleInSSHRequest() {
@@ -158,7 +122,7 @@ func (c *HackItConn) Start() error {
 
 	go c.handleInSSHRequest()
 	go func() {
-		io.Copy(c.channel, io.TeeReader(c.shell, c.observer))
+		io.Copy(c.channel, c.shell)
 		c.Stop()
 	}()
 	go func() {
