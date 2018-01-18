@@ -12,6 +12,7 @@ import (
 
 func OpenBrowser(uiServer string, port string) {
 	if DEV {
+		fmt.Printf("Please visit %s/mysys/%s\n", uiServer, port)
 		return
 	}
 	go func() {
