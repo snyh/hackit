@@ -3,33 +3,38 @@ VERSION=0.1
 
 all: punch-server.tar.gz clients
 
-clients: clients/amd64/client clients/386/client clients/mips64le/client
-	-find clients -type f -exec strip {} \;
+clients: .build/clients/amd64/client .build/clients/386/client .build/clients/mips64le/client
+	-find ./.build/clients -type f -exec strip {} \;
 
-clients/amd64/client:
-	cd server && GOOS="linux" GOARCH="amd64" \
+.build/clients/amd64/client:
+	cd client && GOOS="linux" GOARCH="amd64" \
 		go build -ldflags "-X main.defaultHost=${DEFAULT_HOST} -X main.version=${VERSION}" \
-		-o ../clients/amd64/client
+		-o ../$@
 
-clients/386/client:
-	cd server && GOOS="linux" GOARCH="386" \
+.build/clients/386/client:
+	cd client && GOOS="linux" GOARCH="386" \
 		go build -ldflags "-X main.defaultHost=${DEFAULT_HOST} -X main.version=${VERSION}" \
-		-o ../clients/386/client
+		-o ../$@
 
-clients/mips64le/client:
-	cd server && GOOS="linux" GOARCH="mips64le" \
+.build/clients/mips64le/client:
+	cd client && GOOS="linux" GOARCH="mips64le" \
 		go build -ldflags "-X main.defaultHost=${DEFAULT_HOST} -X main.version=${VERSION}" \
-		-o ../clients/mips64le/client
+		-o ../$@
 
-punch-server.tar.gz: punch-server/ui/build
+server: .build/server/server .build/server/ui/build
+
+.build/server/server:
 	cd punch-server && CGO_ENABLED=0 \
-		go build -ldflags "-X main.version=${VERSION}"
-	tar cvzf punch-server.tar.gz punch-server/punch-server punch-server/ui/build
+		go build -ldflags "-X main.version=${VERSION}" -o ../.build/server/server
 
 punch-server/ui/build:
 	cd punch-server/ui && npm run build
 
-image:
+.build/server/ui/build: punch-server/ui/build
+	mkdir -p .build/server/ui
+	cd punch-server/ui && cp -rf build ../../.build/server/ui/build
+
+image: clients server
 	docker build -t "hackit:${VERSION}" .
 
 cert:
@@ -37,10 +42,10 @@ cert:
 
 test: cert
 	docker run --rm -ti \
-		-v `pwd`/cert:/punch-server/cert \
+		-v `pwd`/cert:/app/server/cert \
 		-p 80:8080 \
 		-p 2200:2200 \
 		hackit:${VERSION}
 
 clean:
-	rm -rf clients cert cert.pub punch-server/punch-server
+	rm -rf ./.build cert cert.pub
