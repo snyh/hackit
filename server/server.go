@@ -21,6 +21,9 @@ func OpenBrowser(uiServer string, port string) {
 	}()
 }
 
+var defaultHost = "hackit.snyh.org"
+var version = "unknown"
+
 var DEV = (os.Getenv("DEV") != "")
 
 func main() {
@@ -30,8 +33,8 @@ func main() {
 		flag.StringVar(&remoteHTTPURL, "remote", "http://localhost:8080", "the hackit's http address.")
 		flag.StringVar(&apiAddr, "api", "localhost:2200", "the hackit's api address")
 	} else {
-		flag.StringVar(&remoteHTTPURL, "remote", "http://hackit.snyh.org", "the server address")
-		flag.StringVar(&apiAddr, "api", "hackit.snyh.org:2200", "the hackit's api address")
+		flag.StringVar(&remoteHTTPURL, "remote", "http://"+defaultHost, "the server address")
+		flag.StringVar(&apiAddr, "api", defaultHost+":2200", "the hackit's api address")
 	}
 
 	flag.StringVar(&localAddr, "local", "auto", "the local listen address")
