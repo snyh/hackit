@@ -20,7 +20,7 @@ func OpenBrowser(uiServer string, port string) {
 	}()
 }
 
-const DEV = true
+var DEV = (os.Getenv("DEV") != "")
 
 func main() {
 	var remoteHTTPURL, localAddr, apiAddr string
