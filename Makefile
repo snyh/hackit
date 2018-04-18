@@ -43,7 +43,7 @@ cert:
 test: cert
 	docker run --rm -ti \
 		-v `pwd`/cert:/app/server/cert \
-		-p 80:8080 \
+		-p 8080:80 \
 		-p 2200:2200 \
 		hackit:${VERSION}
 
