@@ -6,7 +6,7 @@ import './App.css';
 import { BrowserRouter } from 'react-router-dom';
 import registerServiceWorker from './registerServiceWorker';
 import React, { Component } from 'react';
-import { Container } from 'semantic-ui-react';
+import { Container, Segment } from 'semantic-ui-react';
 import { Route, Switch } from 'react-router-dom';
 import UserView from './UserView.js';
 import HackerView from './HackView.js';
@@ -21,6 +21,15 @@ class App extends Component {
                     <Route path="/connect/:id" component={HackerView}/>
                     <Route path="/mysys/:port" component={UserView} />
                 </Switch>
+                <Segment.Group horizontal class=".App-footer">
+                    <Segment>
+                        <a href="https://github.com/snyh/hackit/releases">客户端下载</a>
+                    </Segment>
+
+                    <Segment>
+                        <a href="https://github.com/snyh/hackit">源码</a>
+                    </Segment>
+                </Segment.Group>
             </Container>
         );
     }

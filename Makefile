@@ -31,6 +31,7 @@ punch-server/ui/build:
 	cd punch-server/ui && npm run build
 
 .build/server/ui/build: punch-server/ui/build
+	-rm -r .build/server/ui/
 	mkdir -p .build/server/ui
 	cd punch-server/ui && cp -rf build ../../.build/server/ui/build
 
