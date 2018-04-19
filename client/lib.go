@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 )
@@ -146,6 +147,9 @@ func openUrl(url string) {
 	if err != nil {
 		log.Printf("Please open %q to see more informations\n", url)
 	} else {
+		if !strings.HasPrefix(url, "http") {
+			url = "http://" + url
+		}
 		exec.Command(bin, url).Run()
 	}
 }
