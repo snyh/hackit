@@ -134,8 +134,8 @@ class ListConnection extends Component {
 
     render() {
         const rows = this.state.connections.map ( (v) =>  {
-//            const msg = `有个小问题需要你协助，请访问 ${window.location.origin}/connect/${v.UUID} 来远程操作我的系统吧。`;
-            const msg = `${window.location.origin}/connect/${v.UUID}`;
+            const msg = `有个小问题需要你协助，请访问 ${window.location.origin}/connect/${v.UUID} 来远程操作我的系统吧。`;
+//            const msg = `${window.location.origin}/connect/${v.UUID}`;
             return (
                 <Table.Row key={v.UUID}>
                     <Table.Cell>

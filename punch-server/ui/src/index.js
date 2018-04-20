@@ -21,15 +21,7 @@ class App extends Component {
                     <Route path="/connect/:id" component={HackerView}/>
                     <Route path="/mysys/:port" component={UserView} />
                 </Switch>
-                <Segment.Group horizontal class=".App-footer">
-                    <Segment>
-                        <a href="https://github.com/snyh/hackit/releases">客户端下载</a>
-                    </Segment>
 
-                    <Segment>
-                        <a href="https://github.com/snyh/hackit">源码</a>
-                    </Segment>
-                </Segment.Group>
             </Container>
         );
     }
